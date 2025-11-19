@@ -11,6 +11,7 @@ import {
   drawGridLines
 } from './grid.js';
 import { generateGPX, generateKML, downloadFile } from './export.js';
+import { loadKmlFile, loadCachedKml } from './file-loader.js';
 
 // ===== MAP INITIALIZATION =====
 
@@ -97,43 +98,71 @@ const AppState = {
 // ===== INITIALIZATION =====
 
 /**
- * Initialize KML file selector dropdown
+ * Initialize KML file loader with LocalStorage cache
  */
-async function initializeKmlSelector() {
-  try {
-    const response = await fetch('/api/kmlfiles');
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    const files = await response.json();
+async function initializeKmlLoader() {
+  const loadKmlBtn = document.getElementById('loadKmlBtn');
+  const statusElement = document.getElementById('currentKmlStatus');
 
-    const selectElement = document.getElementById(CONFIG.DOM_IDS.KML_SELECT);
-    files.forEach(filename => {
-      const option = document.createElement('option');
-      option.value = filename;
-      option.textContent = filename;
-      selectElement.appendChild(option);
-    });
-
-    if (files.length > 0) loadKml(files[0]);
-    selectElement.addEventListener('change', () => loadKml(selectElement.value));
-  } catch (error) {
-    console.error('Failed to load KML file list:', error);
-    alert('Fehler beim Laden der KML-Dateiliste. Bitte laden Sie die Seite neu.');
+  // Try to load cached KML on startup
+  const cached = loadCachedKml();
+  if (cached) {
+    console.log(`Auto-loading cached KML: ${cached.filename}`);
+    statusElement.textContent = `Geladen: ${cached.filename}`;
+    loadKmlFromContent(cached.content, cached.filename);
   }
+
+  // File picker button handler
+  loadKmlBtn.addEventListener('click', async () => {
+    try {
+      loadKmlBtn.disabled = true;
+      loadKmlBtn.textContent = '⏳ Lade...';
+
+      const { filename, content } = await loadKmlFile();
+
+      statusElement.textContent = `Geladen: ${filename}`;
+      loadKmlFromContent(content, filename);
+
+      loadKmlBtn.textContent = '📂 Andere KML-Datei laden';
+    } catch (error) {
+      console.error('File loading error:', error);
+      if (error.message !== 'File selection cancelled') {
+        alert(`Fehler beim Laden der Datei: ${error.message}`);
+      }
+      loadKmlBtn.textContent = '📂 KML-Datei laden';
+    } finally {
+      loadKmlBtn.disabled = false;
+    }
+  });
 }
 
 // Initialize the application
-initializeKmlSelector();
+initializeKmlLoader();
 
 /**
- * Load and process KML file
+ * Load and process KML file from content string
  * Orchestrates parsing, grid calculation, visited set building, and visualization
- * @param {string} filename - Name of KML file to load
+ * @param {string} kmlContent - KML file content as string
+ * @param {string} filename - Name of KML file (for display)
  */
-function loadKml(filename) {
+function loadKmlFromContent(kmlContent, filename) {
   AppState.setLoading(true);
   visitedLayer.clearLayers();
   proposedLayer.clearLayers();
-  const layer = omnivore.kml(`/data/${filename}`);
+
+  // Parse KML content using omnivore by creating a temporary blob URL
+  const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' });
+  const blobUrl = URL.createObjectURL(blob);
+  const layer = omnivore.kml(blobUrl);
+
+  // Clean up blob URL after loading
+  layer.on('ready', () => {
+    URL.revokeObjectURL(blobUrl);
+  });
+
+  layer.on('error', () => {
+    URL.revokeObjectURL(blobUrl);
+  });
 
   layer.on('error', (error) => {
     console.error('KML loading error:', error);

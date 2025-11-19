@@ -1,3 +1,19 @@
+"""
+Squadrats Navigator - Optional Development Server
+
+This Flask server is OPTIONAL. The application works as a standalone PWA
+without any backend by opening static/index.html directly in a browser.
+
+This server is provided for:
+- Local development convenience (auto-reload on changes)
+- Testing with a local web server
+- Backward compatibility with existing workflows
+
+To run the app WITHOUT this server:
+1. Open static/index.html directly in your browser, OR
+2. Deploy static/ folder to any static host (GitHub Pages, Netlify, etc.)
+"""
+
 from flask import Flask, send_from_directory, jsonify
 import os
 from typing import cast

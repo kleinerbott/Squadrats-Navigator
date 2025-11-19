@@ -1,12 +1,6 @@
 export function optimizeSquare(base, targetNew, direction, visitedSet, LAT_STEP, LON_STEP, originLat, originLon, optimizationMode = 'balanced', maxHoleSize = 5) {
-  console.log('\n=== SMART UBERSQUADRAT EXPANSION OPTIMIZER ===');
-  console.log('Current ubersquadrat: ' + (base.maxI - base.minI + 1) + '×' + (base.maxJ - base.minJ + 1) +
-              ' (grid indices i=[' + base.minI + ',' + base.maxI + '], j=[' + base.minJ + ',' + base.maxJ + '])');
-  console.log('Visited squares:', visitedSet.size);
-  console.log('Target squares to recommend:', targetNew);
-  console.log('Direction preference:', direction);
-  console.log('Optimization mode:', optimizationMode);
-  console.log('Max hole size:', maxHoleSize);
+  const size = `${base.maxI - base.minI + 1}×${base.maxJ - base.minJ + 1}`;
+  console.log(`\n=== OPTIMIZER === Ubersquadrat: ${size}, Visited: ${visitedSet.size}, Mode: ${optimizationMode}`);
 
   function rectFromIJ(i,j){
     const s = originLat + i * LAT_STEP;
@@ -90,23 +84,12 @@ export function optimizeSquare(base, targetNew, direction, visitedSet, LAT_STEP,
     W: analyzeEdge('W', base.minJ - 1, base.minI, base.maxI, 'col')
   };
 
-  console.log('\n=== EDGE ANALYSIS ===');
-  Object.values(edges).forEach(e => {
-    const status = e.canExpand ? ' ✓ CAN EXPAND!' : '';
-    console.log(`${e.name}: ${e.completion.toFixed(1)}% complete (${e.unvisitedCount}/${e.total} unvisited)${status}`);
-  });
-
-  // Find expandable edges
-  const expandableEdges = Object.values(edges).filter(e => e.canExpand);
-  if (expandableEdges.length > 0) {
-    console.log('\n🎯 EXPANSION OPPORTUNITY: Ubersquadrat can grow on ' + expandableEdges.map(e => e.name).join(', ') + ' edge(s)!');
+  const expandable = Object.values(edges).filter(e => e.canExpand);
+  if (expandable.length > 0) {
+    console.log(`Edges: ${expandable.map(e => e.name).join(',')} can expand!`);
   }
 
-  // Find best edge by completion
-  const edgesByCompletion = Object.values(edges).sort((a, b) => b.completion - a.completion);
-
-  // === PHASE 1.5: HOLE AND CLUSTER DETECTION ===
-  console.log('\n=== HOLE & CLUSTER DETECTION ===');
+  // === PHASE 1.5: HOLE DETECTION ===
 
   // Helper function: Flood-fill to find contiguous unvisited regions
   function findContiguousRegion(startI, startJ, visited, isInBounds) {
@@ -189,18 +172,8 @@ export function optimizeSquare(base, targetNew, direction, visitedSet, LAT_STEP,
     }
   }
 
-  console.log(`Found ${holes.length} total unvisited region(s)`);
-  holes.forEach(hole => {
-    console.log(`  Region ${hole.id}: ${hole.size} square(s), avg layer ${hole.avgLayer.toFixed(1)}`);
-  });
-
-  // Filter holes by max size (ignore massive unexplored regions)
   const validHoles = holes.filter(h => h.size <= maxHoleSize);
-  const ignoredRegions = holes.filter(h => h.size > maxHoleSize);
-
-  console.log(`\nHole filtering (max size: ${maxHoleSize}):`);
-  console.log(`  Valid holes (≤${maxHoleSize}): ${validHoles.length}`);
-  console.log(`  Ignored large regions (>${maxHoleSize}): ${ignoredRegions.length}`);
+  console.log(`Holes: ${validHoles.length} valid (≤${maxHoleSize}), ${holes.length - validHoles.length} ignored`);
 
   // Clear and rebuild squareToHoleMap with only valid holes
   squareToHoleMap.clear();
@@ -210,16 +183,11 @@ export function optimizeSquare(base, targetNew, direction, visitedSet, LAT_STEP,
     });
   });
 
-  // Detect largest clusters from valid holes (size >= 3)
-  const clusters = validHoles.filter(h => h.size >= 3).sort((a, b) => b.size - a.size);
-  console.log(`Found ${clusters.length} cluster(s) (valid holes with size >= 3)`);
 
   // === PHASE 2: FIND UBERSQUADRAT BORDER LAYER SQUARES ===
   function findPerimeterSquares() {
-    const candidates = new Map(); // Use map to avoid duplicates
+    const candidates = new Map();
     const bounds = getSearchBounds(5);
-
-    console.log('Searching for ubersquadrat border layers:', bounds.minI, 'to', bounds.maxI, ',', bounds.minJ, 'to', bounds.maxJ);
 
     // Check each square in the search area
     for (let i = bounds.minI; i <= bounds.maxI; i++) {
@@ -255,149 +223,74 @@ export function optimizeSquare(base, targetNew, direction, visitedSet, LAT_STEP,
       }
     }
 
-    console.log('Found', candidates.size, 'ubersquadrat border layer squares');
-
     return Array.from(candidates.values());
   }
 
   // === PHASE 3: GET ALL PERIMETER SQUARES ===
   const allCandidates = findPerimeterSquares();
-  console.log('\nFound', allCandidates.length, 'perimeter candidates');
-
-  // Remove already visited squares
   const unvisited = allCandidates.filter(c => !visitedSet.has(`${c.i},${c.j}`));
-  console.log('Unvisited candidates:', unvisited.length);
+  console.log(`Candidates: ${unvisited.length} unvisited`);
 
-  // === PHASE 4: STRATEGIC SCORING (UBERSQUADRAT-FOCUSED) ===
-  console.log('\n=== STRATEGIC SCORING ===');
+  // === PHASE 4: STRATEGIC SCORING ===
 
   const scored = unvisited.map(square => {
-    let score = 100; // Base score
-    const scoreBreakdown = ['Base: 100'];
+    let score = 100;
 
-    // === PRIMARY FACTOR: UBERSQUADRAT BORDER LAYER ===
-    // Calculate TRUE layer distance from ubersquadrat
+    // === LAYER DISTANCE (Primary factor) ===
     const isBorder = isOnUbersquadratBorder(square.i, square.j);
     const layerDistance = isBorder ? 0 : calculateLayerDistance(square.i, square.j).total;
 
-    // MASSIVE LAYER BONUSES (dominate all other factors)
-    if (layerDistance === 0) {
-      score += 5000;
-      scoreBreakdown.push('Ubersquadrat border (layer 0): +5000');
-    } else if (layerDistance === 1) {
-      score += 2500;
-      scoreBreakdown.push('Layer 1 from border: +2500');
-    } else if (layerDistance === 2) {
-      score += 1000;
-      scoreBreakdown.push('Layer 2 from border: +1000');
-    }
+    if (layerDistance === 0) score += 5000;
+    else if (layerDistance === 1) score += 1500;
+    else if (layerDistance === 2) score += 750;
 
-    // === SECONDARY FACTOR: EDGE COMPLETION ===
-    const edgeName = square.edge || '';
+    // === EDGE COMPLETION ===
     const maxEdgeCompletion = ['N', 'S', 'E', 'W']
       .filter(dir => square.edge.includes(dir))
       .reduce((max, dir) => Math.max(max, edges[dir].completion), 0);
-
     let edgeBonus = Math.floor(maxEdgeCompletion * 5);
 
-    // === TERTIARY FACTOR: HOLE SIZE BONUS ===
-    // Check if this square is part of a detected hole
+    // === HOLE FILLING ===
     const squareKey = `${square.i},${square.j}`;
     const hole = squareToHoleMap.get(squareKey);
-
     let holeSizeBonus = 0;
+
     if (hole) {
-      // Linear scaling based on hole size: holeSize × 2000
       holeSizeBonus = hole.size * 2000;
 
-      // === HOLE COMPLETION BONUS ===
-      // Check if filling this square would complete the entire hole
-      // A hole is "completable" if all its squares except this one would be visited
-      let wouldCompleteHole = true;
-      let unvisitedInHole = 0;
-
-      for (const holeSquare of hole.squares) {
-        if (!visitedSet.has(holeSquare.key) && holeSquare.key !== squareKey) {
-          unvisitedInHole++;
-          wouldCompleteHole = false;
-        }
-      }
-
-      if (wouldCompleteHole && unvisitedInHole === 0) {
-        const completionBonus = 3000;
-        score += completionBonus;
-        scoreBreakdown.push(`Completes hole ${hole.id}: +${completionBonus}`);
-      }
+      // Bonus for completing entire hole
+      const unvisitedInHole = hole.squares.filter(sq =>
+        !visitedSet.has(sq.key) && sq.key !== squareKey
+      ).length;
+      if (unvisitedInHole === 0) score += 3000;
     }
 
-    // === MODE-SPECIFIC SCORING MULTIPLIERS ===
+    // === MODE MULTIPLIERS ===
     const mult = MODE_MULTIPLIERS[optimizationMode] || MODE_MULTIPLIERS.balanced;
     edgeBonus = Math.floor(edgeBonus * mult.edge);
     holeSizeBonus = Math.floor(holeSizeBonus * mult.hole);
 
-    if (mult.edge !== 1 && edgeBonus > 0)
-      scoreBreakdown.push(`${optimizationMode} mode: edge ×${mult.edge}`);
-    if (mult.hole !== 1 && holeSizeBonus > 0)
-      scoreBreakdown.push(`${optimizationMode} mode: hole ×${mult.hole}`);
+    score += edgeBonus + holeSizeBonus;
 
-    // Add bonuses to score (after mode multipliers applied)
-    score += edgeBonus;
-    score += holeSizeBonus;
-    if (edgeBonus > 0) {
-      scoreBreakdown.push(`Edge ${edgeName} (${maxEdgeCompletion.toFixed(1)}%): +${edgeBonus}`);
-    }
-    if (holeSizeBonus > 0) {
-      scoreBreakdown.push(`Hole size ${hole.size}: +${holeSizeBonus}`);
-    }
+    // === ADJACENCY ===
+    const adjacency = getNeighborKeys(square.i, square.j).filter(n => visitedSet.has(n)).length;
+    score += adjacency * 25;
 
-    // === CLUSTER PROXIMITY BONUS ===
-    if (clusters.length > 0) {
-      let minDistanceToCluster = Infinity;
-      let nearestCluster = null;
-
-      for (const cluster of clusters) {
-        for (const clusterSquare of cluster.squares) {
-          const dist = manhattanDistance(square, clusterSquare);
-          if (dist < minDistanceToCluster) {
-            minDistanceToCluster = dist;
-            nearestCluster = cluster;
-          }
-        }
-      }
-
-      const clusterProximityBonus = Math.max(0, 1000 - (minDistanceToCluster * 100));
-      if (clusterProximityBonus > 0) {
-        score += clusterProximityBonus;
-        scoreBreakdown.push(`Near cluster ${nearestCluster.id} (size ${nearestCluster.size}, dist ${minDistanceToCluster}): +${clusterProximityBonus}`);
-      }
-    }
-
-    // === ADJACENCY BONUS ===
-    const visitedNeighbors = getNeighborKeys(square.i, square.j).filter(n => visitedSet.has(n)).length;
-    const adjacencyBonus = visitedNeighbors * 25;
-    score += adjacencyBonus;
-    scoreBreakdown.push(`Adjacency (${visitedNeighbors} neighbors): +${adjacencyBonus}`);
-
-    // === DIRECTION FILTER (HARD CONSTRAINT) ===
+    // === DIRECTION FILTER ===
     if (direction !== 'all') {
-      const directionChecks = {
+      const matches = {
         N: square.i > base.maxI,
         S: square.i < base.minI,
         E: square.j > base.maxJ,
         W: square.j < base.minJ
       };
-
-      if (!directionChecks[direction]) {
-        score -= 1000000;
-        scoreBreakdown.push('Direction mismatch: -1000000');
-      }
+      if (!matches[direction]) score -= 1000000;
     }
 
-    return {...square, score, scoreBreakdown, edgeName, layerDistance};
+    return {...square, score, layerDistance};
   });
 
-  // === PHASE 5: ROUTE-OPTIMIZED SELECTION ===
-  // Select squares that form an efficient route (minimize travel distance)
+  // === PHASE 5: GREEDY ROUTE SELECTION ===
   const selected = [];
   const remaining = [...scored];
 
@@ -406,83 +299,31 @@ export function optimizeSquare(base, targetNew, direction, visitedSet, LAT_STEP,
     return [];
   }
 
-  // Select first square (highest score overall)
+  // Select first square (highest score)
   remaining.sort((a, b) => b.score - a.score);
   selected.push(remaining.shift());
 
-  // Select subsequent squares prioritizing proximity, clustering, and hole completion
+  // Greedily select remaining squares (proximity + hole completion)
   while (selected.length < targetNew && remaining.length > 0) {
-    const lastSquare = selected[selected.length - 1];
+    const last = selected[selected.length - 1];
 
-    // Score remaining squares by proximity to last selected square + clustering bonuses
     remaining.forEach(sq => {
-      const distance = manhattanDistance(sq, lastSquare);
-      let routeScore = sq.score - (distance * 150); // -150 points per square distance
+      const dist = manhattanDistance(sq, last);
+      sq.routeScore = sq.score - (dist * 100);
 
-      // === CLUSTERING BONUS: Prefer squares adjacent to already-selected squares ===
-      const adjacentToSelected = selected.filter(s => manhattanDistance(sq, s) === 1).length;
-      const clusteringBonus = adjacentToSelected * 500;
-      routeScore += clusteringBonus;
-
-      // === HOLE COMPLETION ROUTE BONUS ===
-      // Check if we've already selected squares from this hole
+      // Bonus: Complete holes we've started filling
       const sqHole = squareToHoleMap.get(`${sq.i},${sq.j}`);
-      if (sqHole) {
-        let selectedFromSameHole = 0;
-        for (const selectedSq of selected) {
-          const selectedHole = squareToHoleMap.get(`${selectedSq.i},${selectedSq.j}`);
-          if (selectedHole && selectedHole.id === sqHole.id) {
-            selectedFromSameHole++;
-          }
-        }
-
-        // If we've started filling this hole, prioritize finishing it
-        if (selectedFromSameHole > 0) {
-          const holeCompletionRouteBonus = 2000;
-          routeScore += holeCompletionRouteBonus;
-        }
+      if (sqHole && selected.some(s => squareToHoleMap.get(`${s.i},${s.j}`)?.id === sqHole.id)) {
+        sq.routeScore += 1500;
       }
-
-      sq.routeScore = routeScore;
-      sq.clusteringBonus = clusteringBonus;
     });
 
-    // Select closest high-scoring square
     remaining.sort((a, b) => b.routeScore - a.routeScore);
     selected.push(remaining.shift());
   }
 
-  // === PHASE 6: ENHANCED LOGGING ===
-  if (edgesByCompletion[0].unvisitedCount > 0) {
-    console.log('\n=== EXPANSION STRATEGY ===');
-    console.log('Priority: Complete ' + edgesByCompletion[0].name + ' edge (' + edgesByCompletion[0].unvisitedCount + ' square(s) remaining)');
-    if (edgesByCompletion[1].unvisitedCount > 0 && edgesByCompletion[1].completion > 50) {
-      console.log('Secondary: Complete ' + edgesByCompletion[1].name + ' edge (' + edgesByCompletion[1].unvisitedCount + ' square(s) remaining)');
-    }
-  }
-
-  console.log('\n=== OPTIMIZED ROUTE ===');
-  selected.forEach((s, idx) => {
-    let routeInfo = '';
-    let routeBonusInfo = '';
-
-    if (idx > 0) {
-      const prev = selected[idx - 1];
-      const dist = manhattanDistance(s, prev);
-      routeInfo = ` (${dist} squares from previous)`;
-
-      // Add route bonus information
-      if (s.clusteringBonus > 0) {
-        routeBonusInfo += `, clustering: +${s.clusteringBonus}`;
-      }
-    }
-
-    const holeInfo = squareToHoleMap.get(`${s.i},${s.j}`);
-    const holeId = holeInfo ? ` hole=${holeInfo.id}` : '';
-
-    console.log(`${idx+1}. Square (${s.i},${s.j}) layer=${s.layerDistance} edge=${s.edgeName}${holeId} score=${s.score.toFixed(0)}${routeInfo}${routeBonusInfo}`);
-    console.log('   ' + s.scoreBreakdown.join(', '));
-  });
+  // === PHASE 6: RESULT SUMMARY ===
+  console.log(`Selected ${selected.length} squares: ${selected.map(s => `(${s.i},${s.j})`).join(' → ')}`);
 
   const results = selected.map(s => rectFromIJ(s.i, s.j));
   return results;
