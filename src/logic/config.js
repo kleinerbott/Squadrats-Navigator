@@ -5,8 +5,8 @@
 
 export const CONFIG = {
   // Grid Configuration
-  SCAN_RADIUS_BUFFER: 20,      // Extra squares beyond ubersquadrat for scanning visited squares
-  GRID_DISPLAY_BUFFER: 150,     // Extra squares to display in grid visualization
+  SCAN_RADIUS_RANGE: 20,      // Extra squares beyond ubersquadrat for scanning visited squares
+  GRID_DISPLAY_RANGE: 150,     // Extra squares to display in grid visualization
   GRID_CELL_CENTER_OFFSET: 0.5, // Offset to calculate cell center (0.5 = middle of cell)
 
   // Grid Line Styling
@@ -25,7 +25,7 @@ export const CONFIG = {
   VISITED_OPACITY: 0.1,
 
   // Routing Configuration
-  ROUTE_LINE_COLOR: '#ffff00ff',
+  ROUTE_LINE_COLOR: '#f700ffff',
   ROUTE_LINE_WEIGHT: 4,
   ROUTE_LINE_OPACITY: 0.7,
   START_MARKER_COLOR: '#00cc00',

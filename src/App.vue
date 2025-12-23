@@ -12,8 +12,15 @@ provide('mapRef', mapRef);
 /**
  * Handle optimization results - show squares on map
  */
-function handleOptimized(squares) {
-  mapRef.value?.showProposedSquares(squares);
+function handleOptimized(result) {
+  // result is now {rectangles, metadata} or legacy array
+  if (Array.isArray(result)) {
+    // Legacy format - just rectangles
+    mapRef.value?.showProposedSquares(result, []);
+  } else {
+    // New format with metadata
+    mapRef.value?.showProposedSquares(result.rectangles, result.metadata);
+  }
 }
 
 /**

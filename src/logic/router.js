@@ -60,9 +60,16 @@ export async function callBRouterAPI(waypoints, profile, apiUrl = 'https://brout
   // Build URL with parameters
   const url = `${apiUrl}?lonlats=${lonlats}&profile=${profile}&alternativeidx=0&format=geojson`;
 
-  console.log(`Calling BRouter API with ${waypoints.length} waypoints, profile=${profile}`);
-  console.log('Waypoints:', waypoints.map((wp, i) => `${i}: [${wp.lat.toFixed(5)}, ${wp.lon.toFixed(5)}]`).join(', '));
-  console.log('Note: BRouter public instance has best coverage for Central Europe. If routing fails, some waypoints may be outside the data coverage area.');
+  console.log(`\n=== BROUTER API CALL ===`);
+  console.log(`Profile: ${profile}`);
+  console.log(`Waypoints: ${waypoints.length}`);
+  console.log(`\nWaypoint details:`);
+  waypoints.forEach((wp, i) => {
+    console.log(`  ${i}: [${wp.lat.toFixed(6)}, ${wp.lon.toFixed(6)}] type=${wp.type || 'unknown'}, hasRoad=${wp.hasRoad !== false}`);
+  });
+  console.log(`\nBRouter URL (first 200 chars): ${url.substring(0, 200)}...`);
+  console.log(`Note: BRouter public instance has best coverage for Central Europe.`);
+  console.log(`========================\n`);
 
   try {
     const response = await fetch(url);
@@ -246,11 +253,18 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
   }
 
   // Step 4: Solve TSP to get optimal order
-  const waypointCoords = optimizedWaypoints.map(wp => ({ lat: wp.lat, lon: wp.lon }));
+  const waypointCoords = optimizedWaypoints.map(wp => ({ lat: wp.lat, lon: wp.lon, type: wp.type, hasRoad: wp.hasRoad }));
   const tspResult = solveTSP(waypointCoords, startPoint, roundtrip, true);
 
+  console.log(`\n=== TSP OPTIMIZATION ===`);
   console.log(`TSP result: ${tspResult.route.length} waypoints, ${tspResult.distance.toFixed(2)} km straight-line distance`);
-  console.log(`Waypoint types in route: ${optimizedWaypoints.filter(wp => wp.type === 'intersection').length} intersections, ${optimizedWaypoints.filter(wp => wp.type === 'midpoint').length} midpoints, ${optimizedWaypoints.filter(wp => wp.type === 'nearest').length} nearest, ${optimizedWaypoints.filter(wp => wp.type === 'center-fallback').length} center-fallback`);
+  console.log(`Waypoint types in route: ${optimizedWaypoints.filter(wp => wp.type === 'intersection').length} intersections, ${optimizedWaypoints.filter(wp => wp.type === 'midpoint').length} midpoints, ${optimizedWaypoints.filter(wp => wp.type === 'nearest').length} nearest, ${optimizedWaypoints.filter(wp => wp.type === 'center-fallback' || wp.type === 'no-road').length} fallback`);
+
+  console.log(`\nTSP-ordered waypoints:`);
+  tspResult.route.forEach((wp, i) => {
+    console.log(`  ${i}: [${wp.lat.toFixed(6)}, ${wp.lon.toFixed(6)}] type=${wp.type || 'unknown'}, hasRoad=${wp.hasRoad !== false}`);
+  });
+  console.log(`========================\n`);
 
   // Step 5: Simplify waypoints if too many or too close together
   let finalWaypoints = tspResult.route;

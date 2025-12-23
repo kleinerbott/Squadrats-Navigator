@@ -67,10 +67,10 @@ export function scanAndBuildVisitedSet(allPolygons, baseSquare, gridParams) {
   console.log('Starting grid-based scan of', allPolygons.length, 'polygons...');
 
   // Define scan area for new squares
-  const scanMinI = baseSquare.minI - CONFIG.SCAN_RADIUS_BUFFER;
-  const scanMaxI = baseSquare.maxI + CONFIG.SCAN_RADIUS_BUFFER;
-  const scanMinJ = baseSquare.minJ - CONFIG.SCAN_RADIUS_BUFFER;
-  const scanMaxJ = baseSquare.maxJ + CONFIG.SCAN_RADIUS_BUFFER;
+  const scanMinI = baseSquare.minI - CONFIG.SCAN_RADIUS_RANGE;
+  const scanMaxI = baseSquare.maxI + CONFIG.SCAN_RADIUS_RANGE;
+  const scanMinJ = baseSquare.minJ - CONFIG.SCAN_RADIUS_RANGE;
+  const scanMaxJ = baseSquare.maxJ + CONFIG.SCAN_RADIUS_RANGE;
 
   console.log('Scanning grid area: i=[', scanMinI, 'to', scanMaxI, '], j=[', scanMinJ, 'to', scanMaxJ, ']');
 
@@ -152,10 +152,10 @@ export function drawGridLines(baseSquare, gridParams, gridLayer) {
   gridLayer.clearLayers();
 
   // Calculate grid area to cover (extend beyond ubersquadrat)
-  const gridMinI = baseSquare.minI - CONFIG.GRID_DISPLAY_BUFFER;
-  const gridMaxI = baseSquare.maxI + CONFIG.GRID_DISPLAY_BUFFER;
-  const gridMinJ = baseSquare.minJ - CONFIG.GRID_DISPLAY_BUFFER;
-  const gridMaxJ = baseSquare.maxJ + CONFIG.GRID_DISPLAY_BUFFER;
+  const gridMinI = baseSquare.minI - CONFIG.GRID_DISPLAY_RANGE;
+  const gridMaxI = baseSquare.maxI + CONFIG.GRID_DISPLAY_RANGE;
+  const gridMinJ = baseSquare.minJ - CONFIG.GRID_DISPLAY_RANGE;
+  const gridMaxJ = baseSquare.maxJ + CONFIG.GRID_DISPLAY_RANGE;
 
   // Draw horizontal grid lines (constant latitude)
   for (let i = gridMinI; i <= gridMaxI + 1; i++) {

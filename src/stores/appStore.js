@@ -23,6 +23,7 @@ export const useAppStore = defineStore('app', {
 
     // Proposed squares (results from optimizer)
     proposedSquares: [],
+    proposedMetadata: [],
 
     // Routing state
     routing: {
@@ -39,14 +40,7 @@ export const useAppStore = defineStore('app', {
       numSquares: 5,
       directions: ['N', 'S', 'E', 'W'],
       mode: 'balanced',
-      maxHoleSize: 3,
-
-      // Optimization approach selector
-      optimizationApproach: 'strategic', // 'strategic' or 'orienteering'
-
-      // Orienteering mode settings
-      maxDistance: 50,      // km (20-100)
-      routingWeight: 1.0    // 0.5-2.0 (route priority)
+      maxHoleSize: 3
     }
   }),
 
@@ -147,8 +141,17 @@ export const useAppStore = defineStore('app', {
       this.visitedSet = visitedSet;
     },
 
-    setProposedSquares(squares) {
-      this.proposedSquares = squares;
+    setProposedSquares(optimizationResult) {
+      // Handle both old format (array) and new format (object with metadata)
+      if (Array.isArray(optimizationResult)) {
+        // Backward compatibility - old format
+        this.proposedSquares = optimizationResult;
+        this.proposedMetadata = [];
+      } else {
+        // New format with metadata
+        this.proposedSquares = optimizationResult.rectangles;
+        this.proposedMetadata = optimizationResult.metadata || [];
+      }
       this.resetRoute();
     },
 

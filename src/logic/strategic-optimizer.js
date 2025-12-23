@@ -103,28 +103,40 @@ export function optimizeStrategic(
   const scored = unvisited.map(square => {
     let score = 100;
 
+    // Initialize score breakdown
+    const scoreBreakdown = {
+      base: 100,
+      layerScore: 0,
+      edgeBonus: 0,
+      holeBonus: 0,
+      adjacencyBonus: 0
+    };
+
     // === LAYER DISTANCE (Primary factor) ===
     const isBorder = isOnUbersquadratBorder(square.i, square.j, base);
     const layerDistance = isBorder ? 0 : calculateLayerDistance(square.i, square.j, base).total;
 
     // Strongly prioritize proximity with bonuses AND penalties
-    if (layerDistance === 0) score += 10000;
-    else if (layerDistance === 1) score += 5000;
-    else if (layerDistance === 2) score += 2000;
-    else if (layerDistance === 3) score += 500;
-    else if (layerDistance === 4) score -= 2000;
-    else if (layerDistance >= 5) score -= 10000;
+    if (layerDistance === 0) scoreBreakdown.layerScore = 10000;
+    else if (layerDistance === 1) scoreBreakdown.layerScore = 5000;
+    else if (layerDistance === 2) scoreBreakdown.layerScore = 2000;
+    else if (layerDistance === 3) scoreBreakdown.layerScore = 500;
+    else if (layerDistance === 4) scoreBreakdown.layerScore = -2000;
+    else if (layerDistance >= 5) scoreBreakdown.layerScore = -10000;
+
+    score += scoreBreakdown.layerScore;
 
     // === EDGE COMPLETION ===
     const maxEdgeCompletion = ['N', 'S', 'E', 'W']
       .filter(dir => square.edge.includes(dir))
       .reduce((max, dir) => Math.max(max, edges[dir].completion), 0);
-    let edgeBonus = Math.floor(maxEdgeCompletion * 5);
+    let edgeBonusRaw = Math.floor(maxEdgeCompletion * 5);
 
     // === HOLE FILLING ===
     const squareKey = `${square.i},${square.j}`;
     const hole = squareToHoleMap.get(squareKey);
-    let holeSizeBonus = 0;
+    let holeSizeBonusRaw = 0;
+    let holeCompletionBonus = 0;
 
     if (hole) {
       // Reduce base multiplier: 2000 → 800
@@ -133,25 +145,29 @@ export function optimizeStrategic(
       if (layerDistance >= 3) holeMultiplier = 400; // 50%
       if (layerDistance >= 5) holeMultiplier = 200; // 25%
 
-      holeSizeBonus = hole.size * holeMultiplier;
+      holeSizeBonusRaw = hole.size * holeMultiplier;
 
       // Keep completion bonus but reduce: 3000 → 1500
       const unvisitedInHole = hole.squares.filter(
         sq => !visitedSet.has(sq.key) && sq.key !== squareKey
       ).length;
-      if (unvisitedInHole === 0) score += 1500;
+      if (unvisitedInHole === 0) {
+        holeCompletionBonus = 1500;
+        score += holeCompletionBonus;
+      }
     }
 
     // === MODE MULTIPLIERS ===
     const mult = MODE_MULTIPLIERS[optimizationMode] || MODE_MULTIPLIERS.balanced;
-    edgeBonus = Math.floor(edgeBonus * mult.edge);
-    holeSizeBonus = Math.floor(holeSizeBonus * mult.hole);
+    scoreBreakdown.edgeBonus = Math.floor(edgeBonusRaw * mult.edge);
+    scoreBreakdown.holeBonus = Math.floor(holeSizeBonusRaw * mult.hole);
 
-    score += edgeBonus + holeSizeBonus;
+    score += scoreBreakdown.edgeBonus + scoreBreakdown.holeBonus;
 
     // === ADJACENCY ===
     const adjacency = getNeighborKeys(square.i, square.j).filter(n => visitedSet.has(n)).length;
-    score += adjacency * 25;
+    scoreBreakdown.adjacencyBonus = adjacency * 25;
+    score += scoreBreakdown.adjacencyBonus;
 
     // === DIRECTION FILTER ===
     // direction is now an array of selected directions (e.g., ['N', 'E'])
@@ -172,7 +188,7 @@ export function optimizeStrategic(
     }
     // If all 4 directions selected or not an array, no filtering (all squares allowed)
 
-    return { ...square, score, layerDistance };
+    return { ...square, score, scoreBreakdown, layerDistance, hole };
   });
 
   // === PHASE 5: GREEDY ROUTE SELECTION ===
@@ -209,6 +225,23 @@ export function optimizeStrategic(
 
   console.log(`Selected ${selected.length} squares: ${selected.map(s => `(${s.i},${s.j})`).join(' → ')}`);
 
-  const results = selected.map(s => rectFromIJ(s.i, s.j, originLat, originLon, LAT_STEP, LON_STEP));
-  return results;
+  // Create rectangles
+  const rectangles = selected.map(s => rectFromIJ(s.i, s.j, originLat, originLon, LAT_STEP, LON_STEP));
+
+  // Create metadata for each selected square
+  const metadata = selected.map((s, index) => ({
+    bounds: rectangles[index],
+    gridCoords: { i: s.i, j: s.j },
+    score: s.score,
+    scoreBreakdown: s.scoreBreakdown,
+    layerDistance: s.layerDistance,
+    selectionOrder: index + 1,
+    edge: s.edge && s.edge.length > 0 ? s.edge : undefined,
+    hole: s.hole ? { size: s.hole.size, id: s.hole.id } : undefined
+  }));
+
+  return {
+    rectangles,
+    metadata
+  };
 }

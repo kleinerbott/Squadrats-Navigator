@@ -57,10 +57,18 @@ function findRoadsInSquare(roads, square) {
   const squarePoly = squareToPolygon(square);
   const intersectingRoads = [];
 
+  let checkedCount = 0;
+  let intersectCount = 0;
+  let clipFailCount = 0;
+  let errorCount = 0;
+
   for (const road of roads) {
+    checkedCount++;
     try {
       // Check if road intersects square
       if (turf.booleanIntersects(road, squarePoly)) {
+        intersectCount++;
+
         // Clip road to square bounds
         const clipped = turf.bboxClip(road, turf.bbox(squarePoly));
 
@@ -69,12 +77,28 @@ function findRoadsInSquare(roads, square) {
             original: road,
             clipped: clipped
           });
+        } else {
+          clipFailCount++;
         }
       }
     } catch (e) {
       // Skip invalid geometries
-      console.warn('Invalid road geometry:', e.message);
+      errorCount++;
+      if (errorCount <= 3) { // Only log first few errors
+        console.warn('Road geometry error:', e.message, 'Road:', road);
+      }
     }
+  }
+
+  // Debug log for this square
+  if (checkedCount > 0 && intersectingRoads.length === 0) {
+    console.warn(`⚠️ No roads found in square! Checked: ${checkedCount}, Intersected: ${intersectCount}, ClipFailed: ${clipFailCount}, Errors: ${errorCount}`);
+
+    // Log square bounds for debugging
+    const bounds = Array.isArray(square)
+      ? { south: square[0][0], west: square[0][1], north: square[1][0], east: square[1][1] }
+      : (square.bounds || square);
+    console.warn(`  Square bounds: [${bounds.south.toFixed(6)}, ${bounds.west.toFixed(6)}] to [${bounds.north.toFixed(6)}, ${bounds.east.toFixed(6)}]`);
   }
 
   return intersectingRoads;
@@ -191,6 +215,28 @@ function findBestWaypointOnRoads(roadsInSquare, square) {
  * @returns {Object} Result with optimized waypoints and statistics
  */
 export function optimizeWaypoints(squares, roads) {
+  console.log(`\n=== WAYPOINT OPTIMIZATION DEBUG ===`);
+  console.log(`Total squares: ${squares.length}`);
+  console.log(`Total roads: ${roads.length}`);
+
+  // Validate road data format
+  if (roads.length > 0) {
+    const sampleRoad = roads[0];
+    console.log(`Sample road structure:`, {
+      type: sampleRoad.type,
+      hasGeometry: !!sampleRoad.geometry,
+      geometryType: sampleRoad.geometry?.type,
+      coordsLength: sampleRoad.geometry?.coordinates?.length,
+      hasProperties: !!sampleRoad.properties
+    });
+  }
+
+  // Validate square data format
+  if (squares.length > 0) {
+    const sampleSquare = squares[0];
+    console.log(`Sample square structure:`, sampleSquare);
+  }
+
   const results = {
     waypoints: [],
     skippedSquares: [],
@@ -208,10 +254,23 @@ export function optimizeWaypoints(squares, roads) {
     const square = squares[i];
     const roadsInSquare = findRoadsInSquare(roads, square);
 
+    // Get square bounds for validation
+    const bounds = Array.isArray(square)
+      ? { south: square[0][0], west: square[0][1], north: square[1][0], east: square[1][1] }
+      : (square.bounds || square);
+
     if (roadsInSquare.length > 0) {
       const waypoint = findBestWaypointOnRoads(roadsInSquare, square);
 
       if (waypoint) {
+        // Validate waypoint is inside square
+        const isInside = waypoint.lat >= bounds.south && waypoint.lat <= bounds.north &&
+                         waypoint.lon >= bounds.west && waypoint.lon <= bounds.east;
+
+        if (!isInside) {
+          console.warn(`⚠️ Square ${i}: Waypoint outside bounds! WP: [${waypoint.lat.toFixed(6)}, ${waypoint.lon.toFixed(6)}], Bounds: [${bounds.south.toFixed(6)}, ${bounds.west.toFixed(6)}] to [${bounds.north.toFixed(6)}, ${bounds.east.toFixed(6)}]`);
+        }
+
         results.waypoints.push({
           ...waypoint,
           squareIndex: i,
@@ -249,12 +308,16 @@ export function optimizeWaypoints(squares, roads) {
     }
   }
 
-  console.log(`Waypoint optimization: ${results.statistics.withRoads}/${results.statistics.total} squares have roads`);
+  console.log(`\n=== WAYPOINT OPTIMIZATION SUMMARY ===`);
+  console.log(`Squares with roads: ${results.statistics.withRoads}/${results.statistics.total}`);
   console.log(`Waypoint types: ${results.statistics.intersections} intersections, ${results.statistics.midpoints} midpoints, ${results.statistics.nearest} nearest points`);
+  console.log(`Fallback to center: ${results.statistics.withoutRoads}`);
 
   if (results.skippedSquares.length > 0) {
-    console.warn(`${results.skippedSquares.length} squares have no suitable roads - using center points as fallback`);
+    console.warn(`⚠️ ${results.skippedSquares.length} squares have no suitable roads - using center points as fallback`);
+    console.warn(`Problematic square indices: ${results.skippedSquares.join(', ')}`);
   }
+  console.log(`=====================================\n`);
 
   return results;
 }

@@ -12,7 +12,6 @@ const { routing } = storeToRefs(store);
 // Template refs
 const mapContainer = ref(null);
 
-// Leaflet map and layers
 let map = null;
 const layers = {
   visited: null,
@@ -33,23 +32,20 @@ onUnmounted(() => {
 });
 
 /**
- * Initialize Leaflet map
+ * Initialize Leaflet map with Layer and click handler
  */
 function initializeMap() {
   map = L.map(mapContainer.value).setView([51.7, 8.3], 10);
 
-  // Add OpenStreetMap tiles
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
 
-  // Create layer groups
   layers.visited = L.layerGroup().addTo(map);
   layers.proposed = L.layerGroup().addTo(map);
   layers.grid = L.layerGroup().addTo(map);
   layers.route = L.layerGroup().addTo(map);
 
-  // Handle map clicks for start point selection
   map.on('click', handleMapClick);
 }
 
@@ -116,18 +112,77 @@ function onKmlLoaded(data) {
 }
 
 /**
- * Show proposed squares on map
+ * Show proposed squares on map with score tooltips and popups
  */
-function showProposedSquares(squares) {
+function showProposedSquares(squares, metadata = []) {
   layers.proposed.clearLayers();
 
-  squares.forEach(rectangle => {
-    L.rectangle(rectangle, {
+  squares.forEach((rectangle, index) => {
+    const meta = metadata[index];
+
+    // Create rectangle with same styling
+    const rect = L.rectangle(rectangle, {
       color: CONFIG.PROPOSED_COLOR,
       fillColor: CONFIG.PROPOSED_COLOR,
       fillOpacity: CONFIG.PROPOSED_OPACITY
-    }).addTo(layers.proposed);
+    });
+
+    // Add hover tooltip (quick summary)
+    if (meta) {
+      const tooltipText = `#${meta.selectionOrder}: ${meta.score.toLocaleString()} points`;
+      rect.bindTooltip(tooltipText, {
+        permanent: false,
+        direction: 'top'
+      });
+
+      // Add click popup (full details)
+      const popupContent = formatScorePopup(meta);
+      rect.bindPopup(popupContent, {
+        maxWidth: 300,
+        className: 'score-popup'
+      });
+    }
+
+    rect.addTo(layers.proposed);
   });
+}
+
+/**
+ * Format detailed score popup content
+ */
+function formatScorePopup(meta) {
+  const {gridCoords, score, scoreBreakdown, layerDistance, selectionOrder, edge, hole} = meta;
+
+  let html = `
+    <div class="square-score-details">
+      <h4>Square #${selectionOrder}</h4>
+      <p><strong>Grid Position:</strong> (${gridCoords.i}, ${gridCoords.j})</p>
+      <p><strong>Layer Distance:</strong> ${layerDistance}</p>
+      ${edge ? `<p><strong>Edge:</strong> ${edge}</p>` : ''}
+      ${hole ? `<p><strong>Hole:</strong> Size ${hole.size}</p>` : ''}
+
+      <hr/>
+      <h5>Total Score: ${score.toLocaleString()}</h5>
+
+      <h5>Score Breakdown:</h5>
+      <ul>
+        <li>Base: ${scoreBreakdown.base}</li>
+  `;
+
+  // Strategic mode breakdown
+  html += `
+      <li>Layer Distance: ${scoreBreakdown.layerScore >= 0 ? '+' : ''}${scoreBreakdown.layerScore.toLocaleString()}</li>
+      <li>Edge Bonus: ${scoreBreakdown.edgeBonus >= 0 ? '+' : ''}${scoreBreakdown.edgeBonus.toLocaleString()}</li>
+      <li>Hole Bonus: ${scoreBreakdown.holeBonus >= 0 ? '+' : ''}${scoreBreakdown.holeBonus.toLocaleString()}</li>
+      <li>Adjacency: ${scoreBreakdown.adjacencyBonus >= 0 ? '+' : ''}${scoreBreakdown.adjacencyBonus.toLocaleString()}</li>
+  `;
+
+  html += `
+      </ul>
+    </div>
+  `;
+
+  return html;
 }
 
 /**
@@ -156,24 +211,36 @@ function showRoute(routeData) {
     opacity: CONFIG.ROUTE_LINE_OPACITY
   }).addTo(layers.route);
 
-  // Add waypoint markers if not too many
-  // These are road-aware waypoints from waypoint-optimizer.js
+  // Add waypoint markers with color coding for debugging
+  // Green = on road, Red = fallback to center
   if (routeData.waypoints && routeData.waypoints.length < CONFIG.MAX_WAYPOINT_MARKERS) {
+    let roadAwareCount = 0;
+    let fallbackCount = 0;
+
     routeData.waypoints.forEach((wp, index) => {
       if (index === 0) return; // Skip start point (already shown)
 
+      const hasRoad = wp.hasRoad !== false && wp.type !== 'center-fallback' && wp.type !== 'no-road';
+      const color = hasRoad ? '#4CAF50' : '#FF5252'; // Green for road, red for fallback
+
+      if (hasRoad) roadAwareCount++;
+      else fallbackCount++;
+
       L.circleMarker([wp.lat, wp.lon], {
-        radius: 3,
-        fillColor: '#ffffff',
-        color: CONFIG.ROUTE_LINE_COLOR,
+        radius: 4,
+        fillColor: color,
+        color: '#ffffff',
         weight: 1,
         opacity: 1,
-        fillOpacity: 0.8
-      }).addTo(layers.route);
+        fillOpacity: 0.9
+      }).bindTooltip(`WP ${index}: ${wp.type || 'unknown'}`, { permanent: false })
+        .addTo(layers.route);
     });
-  }
 
-  console.log(`Map: Displayed route with ${routeData.waypoints?.length || 0} waypoints`);
+    console.log(`Map: Displayed route with ${routeData.waypoints?.length || 0} waypoints (${roadAwareCount} road-aware, ${fallbackCount} fallback)`);
+  } else if (routeData.waypoints) {
+    console.log(`Map: Displayed route with ${routeData.waypoints?.length || 0} waypoints (too many for markers)`);
+  }
 }
 
 /**
@@ -209,5 +276,42 @@ defineExpose({
   flex: 1;
   height: 100%;
   z-index: 0;
+}
+
+/* Score popup styling */
+:deep(.score-popup) {
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+}
+
+:deep(.score-popup .square-score-details h4) {
+  margin: 0 0 10px 0;
+  color: #333;
+  font-size: 14px;
+}
+
+:deep(.score-popup .square-score-details h5) {
+  margin: 10px 0 5px 0;
+  color: #555;
+  font-size: 13px;
+}
+
+:deep(.score-popup .square-score-details p) {
+  margin: 5px 0;
+}
+
+:deep(.score-popup .square-score-details ul) {
+  margin: 5px 0;
+  padding-left: 20px;
+}
+
+:deep(.score-popup .square-score-details li) {
+  margin: 3px 0;
+}
+
+:deep(.score-popup .square-score-details hr) {
+  margin: 10px 0;
+  border: none;
+  border-top: 1px solid #ddd;
 }
 </style>

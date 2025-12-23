@@ -8,7 +8,7 @@
 const ROAD_FILTERS = {
   // Road bike - paved roads only, very restrictive
   fastbike: {
-    highways: 'primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|living_street',
+    highways: 'primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|living_street|unclassified',
     excludeSurfaces: 'gravel|unpaved|dirt|grass|sand|mud|ground|earth|compacted|fine_gravel|pebblestone|wood|metal|cobblestone',
     allowedSurfaces: 'paved|asphalt|concrete',
     excludeHighways: 'track|path|footway|bridleway|steps',
@@ -122,12 +122,13 @@ function overpassToGeoJSON(overpassData) {
 }
 
 /**
- * Fetch roads from Overpass API for a bounding box
+ * Fetch roads from Overpass API for a bounding box with retry logic
  * @param {Object} bounds - {south, west, north, east} or {minLat, maxLat, minLon, maxLon}
  * @param {string} bikeType - 'fastbike', 'gravel', or 'trekking'
+ * @param {number} maxRetries - Maximum number of retry attempts
  * @returns {Promise<Array>} Array of GeoJSON road features
  */
-export async function fetchRoadsInArea(bounds, bikeType = 'trekking') {
+export async function fetchRoadsInArea(bounds, bikeType = 'trekking', maxRetries = 2) {
   // Normalize bounds format
   const normalizedBounds = {
     south: bounds.south ?? bounds.minLat,
@@ -146,32 +147,66 @@ export async function fetchRoadsInArea(bounds, bikeType = 'trekking') {
 
   const query = buildOverpassQuery(bufferedBounds, bikeType);
 
-  console.log(`Fetching ${bikeType} roads from Overpass API...`);
-  console.log(`Bounds: [${bufferedBounds.south.toFixed(4)}, ${bufferedBounds.west.toFixed(4)}] to [${bufferedBounds.north.toFixed(4)}, ${bufferedBounds.east.toFixed(4)}]`);
+  let lastError = null;
+  let attempt = 0;
 
-  try {
-    const response = await fetch('https://overpass-api.de/api/interpreter', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: `data=${encodeURIComponent(query)}`
-    });
+  // Retry loop
+  while (attempt <= maxRetries) {
+    attempt++;
 
-    if (!response.ok) {
-      throw new Error(`Overpass API error: ${response.status} ${response.statusText}`);
+    try {
+      const response = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: `data=${encodeURIComponent(query)}`
+      });
+
+      // Handle 504 Gateway Timeout - retry
+      if (response.status === 504) {
+        const error = new Error(`Gateway Timeout (504) - Overpass API is overloaded`);
+        error.shouldRetry = true;
+        throw error;
+      }
+
+      // Handle other HTTP errors
+      if (!response.ok) {
+        throw new Error(`Overpass API error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const roads = overpassToGeoJSON(data);
+
+      // Success - return roads (even if 0, after retries)
+      if (roads.length > 0 || attempt > maxRetries) {
+        return roads;
+      }
+
+      // No roads but retries remaining - mark for retry
+      const error = new Error(`0 roads returned`);
+      error.shouldRetry = true;
+      throw error;
+
+    } catch (error) {
+      lastError = error;
+
+      // Should we retry?
+      const shouldRetry = error.shouldRetry || error.name === 'TypeError';
+
+      if (shouldRetry && attempt <= maxRetries) {
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Exponential backoff: 1s, 2s, 4s (max 5s)
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue; // Retry
+      }
+
+      // No more retries
+      break;
     }
-
-    const data = await response.json();
-    const roads = overpassToGeoJSON(data);
-
-    console.log(`Fetched ${roads.length} road segments for ${bikeType}`);
-
-    return roads;
-  } catch (error) {
-    console.error('Failed to fetch roads from Overpass:', error);
-    throw new Error(`Road data fetch failed: ${error.message}`);
   }
+
+  // All attempts failed
+  throw new Error(`Road data fetch failed after ${attempt} attempts: ${lastError?.message || 'Unknown error'}`);
 }
 
 /**

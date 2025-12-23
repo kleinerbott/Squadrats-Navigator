@@ -1,5 +1,5 @@
 <script setup>
-import { ref, inject } from 'vue';
+import { ref, inject, computed } from 'vue';
 import { useAppStore } from '../stores/appStore';
 import { storeToRefs } from 'pinia';
 import { calculateRoute } from '../logic/router';
@@ -69,16 +69,6 @@ async function handleCalculateRoute() {
 
 <template>
   <div>
-    <!-- Orienteering mode info -->
-    <v-alert
-      v-if="settings.optimizationApproach === 'orienteering'"
-      type="info"
-      density="compact"
-      class="mb-3"
-    >
-      Quadrate wurden routing-optimiert ausgewählt
-    </v-alert>
-
     <!-- Bike type selection -->
     <v-select
       v-model="routing.bikeType"

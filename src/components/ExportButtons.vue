@@ -1,6 +1,11 @@
 <script setup>
 import { ref } from 'vue';
 import { generateGPX, generateKML, downloadFile } from '../logic/export';
+import { useAppStore } from '../stores/appStore';
+import { storeToRefs } from 'pinia';
+
+const store = useAppStore();
+const { routing } = storeToRefs(store);
 
 const props = defineProps({
   route: {
@@ -36,6 +41,46 @@ function exportKml() {
     error.value = err.message;
   }
 }
+
+/**
+ * Open route in BikeRouter web interface for editing
+ */
+function openInBikeRouter() {
+  try {
+    if (!props.route || !props.route.waypoints || props.route.waypoints.length < 2) {
+      error.value = 'No waypoints available';
+      return;
+    }
+
+    // Get waypoints (lon,lat format for BikeRouter, separated by semicolons)
+    const lonlats = props.route.waypoints
+      .map(wp => `${wp.lon.toFixed(6)},${wp.lat.toFixed(6)}`)
+      .join(';');
+
+    // Get center point for map (use middle of route)
+    const midIndex = Math.floor(props.route.waypoints.length / 2);
+    const centerLat = props.route.waypoints[midIndex].lat;
+    const centerLon = props.route.waypoints[midIndex].lon;
+    const zoom = 12;
+
+    // Map bike type to BikeRouter profile
+    const profileMap = {
+      trekking: 'trekking',
+      gravel: 'gravel',
+      fastbike: 'fastbike'
+    };
+    const profile = profileMap[routing.value.bikeType] || 'trekking';
+
+    // Build BikeRouter web URL
+    const url = `https://bikerouter.de/#map=${zoom}/${centerLat.toFixed(5)}/${centerLon.toFixed(5)}/standard&lonlats=${lonlats}&profile=${profile}`;
+
+    // Open in new tab
+    window.open(url, '_blank');
+  } catch (err) {
+    console.error('BikeRouter link error:', err);
+    error.value = err.message;
+  }
+}
 </script>
 
 <template>
@@ -60,6 +105,18 @@ function exportKml() {
         KML
       </v-btn>
     </div>
+
+    <v-btn
+      block
+      variant="outlined"
+      prepend-icon="mdi-open-in-new"
+      size="small"
+      class="mt-2"
+      color="primary"
+      @click="openInBikeRouter"
+    >
+      In BikeRouter bearbeiten
+    </v-btn>
 
     <v-alert
       v-if="error"
