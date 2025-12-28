@@ -30,8 +30,8 @@ export const useAppStore = defineStore('app', {
       startPoint: null,
       selectingStartPoint: false,
       currentRoute: null,
-      bikeType: 'trekking',
-      roundtrip: false
+      bikeType: 'fastbike',
+      roundtrip: true
     },
 
     // Optimization settings

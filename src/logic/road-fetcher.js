@@ -3,10 +3,7 @@
  * Fetches road data from Overpass API with bike-type specific filters
  */
 
-// Road filters for different bike types
-// Excludes highways, motorways, and bike-inappropriate roads
 const ROAD_FILTERS = {
-  // Road bike - paved roads only, very restrictive
   fastbike: {
     highways: 'primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|residential|living_street|unclassified',
     excludeSurfaces: 'gravel|unpaved|dirt|grass|sand|mud|ground|earth|compacted|fine_gravel|pebblestone|wood|metal|cobblestone',
@@ -15,14 +12,12 @@ const ROAD_FILTERS = {
     description: 'Paved roads only - suitable for road bikes'
   },
 
-  // Gravel bike - includes unpaved roads and tracks
   gravel: {
     highways: 'primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|residential|living_street|cycleway|service|track|path|bridleway',
     excludeSurfaces: 'mud|sand',
     description: 'Paved and unpaved roads suitable for gravel bikes'
   },
 
-  // Trekking/touring - general cycling, avoids difficult terrain
   trekking: {
     highways: 'primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|residential|living_street|cycleway|service|track|path',
     excludeSurfaces: 'mud|sand|grass',
@@ -42,7 +37,6 @@ function buildOverpassQuery(bounds, bikeType) {
 
   // For fastbike, use a more restrictive query with positive surface filter
   if (bikeType === 'fastbike') {
-    // Query for roads with explicitly paved surfaces OR major roads
     const query = `
 [out:json][timeout:30];
 (

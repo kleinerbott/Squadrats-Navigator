@@ -158,7 +158,7 @@ export function analyzeEdges(base, visitedSet) {
   if (expandable.length > 0) {
     console.log(`Edges: ${expandable.map(e => e.name).join(',')} can expand!`);
   }
-
+ 
   return edges;
 }
 
