@@ -1,0 +1,281 @@
+---
+query: "Erstelle ein vollständiges Klassendiagramm für mein Vue-Projekt.\r
+
+  Die Hauptkomponenten sind:\r
+
+  \r
+
+  App.vue (enthält LeafletMap und AppSidebar, Methoden: handleOptimized,
+  handleRouteCalculated, handleKmlLoaded)\r
+
+  LeafletMap.vue (Methoden: initMap, onKmlLoaded, showProposedSquares,
+  showRoute, clearProposedSquares, clearRoute)\r
+
+  AppSidebar.vue (emittiert: optimized, route-calculated, kml-loaded; enthält:
+  KmlLoader, DirectionPicker, OptimizeControls, RouteControls, RouteStats,
+  ExportButtons)\r
+
+  Es gibt einen Pinia-Store (AppStore) mit den Properties: state, grid
+  (GridParams), visitedSet, baseSquare (BaseSquare), proposedSquares, routing
+  (RoutingState), settings (Settings), isReady, canCalculateRoute und Methoden
+  wie resetState, setStartPoint, toggleDirection, setProposedSquares.\r
+
+  \r
+
+  Die wichtigsten Logikmodule sind: OptimizerModule, RouterModule, BRouterAPI,
+  RoutingStrategies, TSPSolver, RoadFetcher, WaypointOptimizer, BoundsUtils,
+  KmlProcessor, FileLoader, ExportModule, GridModule.\r
+
+  \r
+
+  Zeige alle Beziehungen:\r
+
+  \r
+
+  Komponenten-Hierarchie (wer enthält wen)\r
+
+  Store-Komposition\r
+
+  Wer verwendet den Store\r
+
+  Welche Komponenten/Module rufen welche Logikmodule auf\r
+
+  Datenfluss (z.B. OptimizerModule gibt Squares an LeafletMap zurück,
+  KmlProcessor aktualisiert visitedSet im Store)\r
+
+  Zeige alle Methoden der Klassen "
+generationTime: 2026-01-20T16:57:42.062Z
+---
+classDiagram
+    %% ===== Vue Komponenten =====
+    class App {
+        +handleOptimized(squares)
+        +handleRouteCalculated(routeData)
+        +handleKmlLoaded(data)
+    }
+    class LeafletMap {
+        +initMap()
+        +onKmlLoaded(data)
+        +showProposedSquares(squares)
+        +showRoute(routeData)
+        +clearProposedSquares()
+        +clearRoute()
+    }
+    class AppSidebar {
+        +emits optimized
+        +emits route-calculated
+        +emits kml-loaded
+    }
+    class KmlLoader {
+        +selectFile()
+        +loadKml(file)
+        +processKml(xmlDoc)
+    }
+    class DirectionPicker {
+        +toggleDirection(dir)
+        +selectAll()
+    }
+    class OptimizeControls {
+        +optimize()
+    }
+    class RouteControls {
+        +selectStartPoint()
+        +calculateRoute()
+    }
+    class RouteStats {
+        +displayStats()
+    }
+    class ExportButtons {
+        +exportGPX()
+        +exportKML()
+    }
+
+    %% ===== Pinia Store =====
+    class AppStore {
+        +resetState()
+        +setStartPoint(lat, lon)
+        +toggleDirection(dir)
+        +setProposedSquares(squares)
+        +state: Object
+        +grid: GridParams
+        +visitedSet: Set
+        +baseSquare: BaseSquare
+        +proposedSquares: Array
+        +routing: RoutingState
+        +settings: Settings
+        +isReady: Boolean
+        +canCalculateRoute: Boolean
+    }
+    class GridParams {
+        +latStep: Number
+        +lonStep: Number
+        +originLat: Number
+        +originLon: Number
+    }
+    class BaseSquare {
+        +minI: Number
+        +maxI: Number
+        +minJ: Number
+        +maxJ: Number
+    }
+    class RoutingState {
+        +startPoint: Object
+        +selectingStartPoint: Boolean
+        +currentRoute: Object
+        +bikeType: String
+        +roundtrip: Boolean
+    }
+    class Settings {
+        +numSquares: Number
+        +directions: String[]
+        +mode: String
+        +maxHoleSize: Number
+    }
+
+    %% ===== Logikmodule =====
+    class OptimizerModule {
+        <<module>>
+        +optimizeSquare(base, targetNew, direction, visitedSet, ...)
+        -analyzeEdge(name, fixedCoord, ...)
+        -findPerimeterSquares()
+        -findContiguousRegion(startI, startJ, ...)
+        -calculateLayerDistance(i, j)
+        -getNeighborKeys(i, j)
+        -manhattanDistance(p1, p2)
+    }
+    class RouterModule {
+        <<module>>
+        +calculateRoute(proposedLayer, startPoint, bikeType, roundtrip)
+        +extractProposedSquares(proposedLayer)
+        -groupSquaresByDirection(squares)
+        +formatTime(minutes)
+    }
+    class BRouterAPI {
+        <<module>>
+        +callBRouterAPI(waypoints, profile, apiUrl)
+        +parseBRouterResponse(geojson)
+    }
+    class RoutingStrategies {
+        <<module>>
+        +tryProfilesWithFallback(profiles, waypoints, apiUrl)
+        +simplifyWaypoints(waypoints, minDistance)
+        +createMinimalWaypoints(waypoints)
+        +isCoverageError(error)
+        -SimplificationStrategy
+    }
+    class TSPSolver {
+        <<module>>
+        +solveTSP(waypoints, startPoint, roundtrip, optimize)
+        +calculateRouteDistance(route)
+        +nearestNeighbor(points, startPoint, roundtrip)
+        +twoOptOptimize(route, maxIterations)
+    }
+    class RoadFetcher {
+        <<module>>
+        +fetchRoadsInArea(bounds, bikeType, maxRetries)
+        -buildOverpassQuery(bounds, bikeType)
+        -overpassToGeoJSON(overpassData)
+        +getBikeTypeDescription(bikeType)
+        +getAvailableBikeTypes()
+    }
+    class WaypointOptimizer {
+        <<module>>
+        +optimizeWaypoints(squares, roads)
+        +optimizeWaypointsWithSequence(orderedSquares, roads, startPoint, roundtrip)
+        +calculateCombinedBounds(squares)
+        -findRoadsInSquare(roads, square)
+        -findBestWaypointOnRoads(roadsInSquare, square)
+        -findBestWaypointWithNeighbors(roadsInSquare, square, prevPoint, nextPoint, nextSquare)
+        -findConnectingRoads(roadsInSquare, nextSquare)
+        -roadConnectsToNextSquare(road, nextSquare)
+        -squareToPolygon(square)
+    }
+    class BoundsUtils {
+        <<module>>
+        +normalizeBounds(bounds)
+        +boundsToArray(bounds)
+        +boundsToMinMax(bounds)
+        +isPointInBounds(lat, lon, bounds)
+        +getBoundsCenter(bounds)
+        +expandBounds(bounds, margin)
+        +combineBounds(boundsArray)
+        +coordsMatch(a, b, tolerance)
+        +pointsMatch(p1, p2, tolerance)
+        +COORD_TOLERANCE
+    }
+    class KmlProcessor {
+        <<module>>
+        +processKmlData(xmlDoc, latStep, lonStep, originLat, originLon)
+        +identifyUbersquadrat(placemarks)
+        +calculateGridParams(ubersquadrat)
+        +buildVisitedSet(polygons, base, ...)
+        -isPointInPolygonWithHoles(lat, lon, polygon)
+    }
+    class FileLoader {
+        <<module>>
+        +loadKmlFromUrl(filename)
+        +loadKmlFiles()
+    }
+    class ExportModule {
+        <<module>>
+        +exportToGPX(routeData, filename)
+        +exportToKML(proposedSquares, filename)
+        -buildGPXXml(routeData)
+        -buildKMLXml(squares)
+    }
+    class GridModule {
+        <<module>>
+        +drawGrid(bounds, latStep, lonStep, originLat, originLon)
+        +coordinateToLatLon(i, j, latStep, lonStep, originLat, originLon)
+    }
+
+    %% ===== Beziehungen =====
+
+    %% Komponenten-Hierarchie
+    App --> LeafletMap : enthält
+    App --> AppSidebar : enthält
+    AppSidebar --> KmlLoader : enthält
+    AppSidebar --> DirectionPicker : enthält
+    AppSidebar --> OptimizeControls : enthält
+    AppSidebar --> RouteControls : enthält
+    AppSidebar --> RouteStats : enthält
+    AppSidebar --> ExportButtons : enthält
+
+    %% Store-Komposition
+    AppStore *-- GridParams : enthält
+    AppStore *-- BaseSquare : enthält
+    AppStore *-- RoutingState : enthält
+    AppStore *-- Settings : enthält
+
+    %% Store-Nutzung
+    App ..> AppStore : verwendet
+    LeafletMap ..> AppStore : verwendet
+    KmlLoader ..> AppStore : verwendet
+    DirectionPicker ..> AppStore : verwendet
+    OptimizeControls ..> AppStore : verwendet
+    RouteControls ..> AppStore : verwendet
+    RouteStats ..> AppStore : verwendet
+    ExportButtons ..> AppStore : verwendet
+
+    %% Logikmodule-Nutzung
+    OptimizeControls ..> OptimizerModule : ruft auf
+    RouteControls ..> RouterModule : ruft auf
+    RouterModule ..> TSPSolver : verwendet
+    RouterModule ..> RoadFetcher : verwendet
+    RouterModule ..> WaypointOptimizer : verwendet
+    RouterModule ..> RoutingStrategies : verwendet
+    RouterModule ..> BRouterAPI : verwendet
+    RouterModule ..> BoundsUtils : verwendet
+    RoutingStrategies ..> BRouterAPI : verwendet
+    WaypointOptimizer ..> BoundsUtils : verwendet
+    RoadFetcher ..> BoundsUtils : verwendet
+    KmlLoader ..> KmlProcessor : verwendet
+    KmlLoader ..> FileLoader : verwendet
+    LeafletMap ..> GridModule : verwendet
+    ExportButtons ..> ExportModule : verwendet
+
+    %% Datenfluss
+    OptimizerModule ..> LeafletMap : gibt Squares zurück
+    KmlProcessor ..> AppStore : aktualisiert visitedSet & grid
+    OptimizerModule ..> AppStore : liest visitedSet & grid
+    RouterModule ..> LeafletMap : gibt Route zurück
