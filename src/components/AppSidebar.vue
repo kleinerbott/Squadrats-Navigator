@@ -104,6 +104,7 @@ defineExpose({
 .sidebar {
   position: relative;
   height: 100vh;
+  height: 100dvh; 
   width: 320px;
   background: white;
   box-shadow: -2px 0 8px rgba(0, 0, 0, 0.1);
@@ -134,6 +135,8 @@ defineExpose({
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .sidebar-overlay {
