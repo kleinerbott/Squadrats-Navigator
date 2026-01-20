@@ -6,7 +6,7 @@
 import * as turf from '@turf/turf';
 import { CONFIG } from './config.js';
 
-// ===== GEOMETRY HELPER FUNCTIONS (using Turf.js) =====
+// ===== GEOMETRY HELPER FUNCTIONS =====
 
 /**
  * Calculates bounding box from coordinates
@@ -36,7 +36,6 @@ export function isPointInPolygonWithHoles(lat, lon, polygon) {
 
   // Build polygon coordinates: outer ring + holes, all in [lon, lat] format
   const outerRing = polygon.outer.map(c => [c[1], c[0]]);
-  // Close the ring if not already closed
   if (outerRing[0][0] !== outerRing[outerRing.length - 1][0] ||
       outerRing[0][1] !== outerRing[outerRing.length - 1][1]) {
     outerRing.push(outerRing[0]);
@@ -47,7 +46,6 @@ export function isPointInPolygonWithHoles(lat, lon, polygon) {
   // Add holes
   for (const hole of polygon.holes) {
     const holeRing = hole.map(c => [c[1], c[0]]);
-    // Close the hole ring if not already closed
     if (holeRing[0][0] !== holeRing[holeRing.length - 1][0] ||
         holeRing[0][1] !== holeRing[holeRing.length - 1][1]) {
       holeRing.push(holeRing[0]);
@@ -59,7 +57,6 @@ export function isPointInPolygonWithHoles(lat, lon, polygon) {
     const turfPolygon = turf.polygon(rings);
     return turf.booleanPointInPolygon(point, turfPolygon);
   } catch (e) {
-    // Fallback for invalid polygons
     return false;
   }
 }
@@ -178,11 +175,11 @@ export function parseKmlFeatures(layer) {
  * Find the ubersquadrat from candidates (must be explicitly named)
  * Uses Turf.js area calculation if multiple candidates exist
  * @param {Array} candidates - Array of ubersquadrat candidates
- * @returns {Object} {coords, size} or {coords: null, size: 16} if not found
+ * @returns {Object} {coords, size} or {coords: null, size: 4} if not found
  */
 export function findUbersquadrat(candidates) {
   if (candidates.length === 0) {
-    return { coords: null, size: 16 };
+    return { coords: null, size: 4 };
   }
 
   // If multiple ubersquadrat candidates, pick the largest

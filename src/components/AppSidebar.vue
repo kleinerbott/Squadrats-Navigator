@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { useDisplay } from 'vuetify';
 import { useAppStore } from '../stores/appStore';
 import { storeToRefs } from 'pinia';
@@ -19,6 +19,35 @@ const display = useDisplay();
 const isMobile = computed(() => !display.mdAndUp.value);
 
 const isOpen = ref(false);
+const sidebarScrollRef = ref(null);
+
+
+function scrollToBottom() {
+  if (sidebarScrollRef.value) {
+    sidebarScrollRef.value.scrollTo({
+      top: sidebarScrollRef.value.scrollHeight,
+      behavior: 'smooth'
+    });
+  }
+}
+
+
+function handleRouteCalculationStarted() {
+  nextTick(() => {
+    scrollToBottom();
+  });
+}
+
+
+function handleRouteCalculated(route) {
+  emit('route-calculated', route);
+
+  if (isMobile.value) {
+    setTimeout(() => {
+      isOpen.value = false;
+    }, 1000);
+  }
+}
 
 defineExpose({
   toggle: () => isOpen.value = !isOpen.value,
@@ -44,7 +73,7 @@ defineExpose({
       <!-- Header -->
       <v-list-item class="sidebar-header">
         <v-list-item-title class="text-h6">
-          Squadrats Optimizer
+          Squadrat-Optimizer
         </v-list-item-title>
         <v-list-item-subtitle v-if="kmlFilename">
           {{ kmlFilename }}
@@ -57,7 +86,7 @@ defineExpose({
       <v-divider />
 
       <!-- Scrollable content area -->
-      <div class="sidebar-scroll">
+      <div ref="sidebarScrollRef" class="sidebar-scroll">
         <div class="pa-3">
           <KmlLoader @kml-loaded="(data) => emit('kml-loaded', data)" />
         </div>
@@ -75,7 +104,10 @@ defineExpose({
 
         <div class="pa-3">
           <div class="text-subtitle-2 mb-2">Routing</div>
-          <RouteControls @route-calculated="(route) => emit('route-calculated', route)" />
+          <RouteControls
+            @route-calculation-started="handleRouteCalculationStarted"
+            @route-calculated="handleRouteCalculated"
+          />
 
           <RouteStats
             v-if="routing.currentRoute"
@@ -143,7 +175,6 @@ defineExpose({
   display: none;
 }
 
-/* Mobile: sidebar hidden by default, slides in as overlay */
 @media (max-width: 800px) {
   .sidebar {
     position: fixed;

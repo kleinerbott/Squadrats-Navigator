@@ -9,7 +9,7 @@ const store = useAppStore();
 const { routing, canCalculateRoute, startPointFormatted, proposedSquares, settings } = storeToRefs(store);
 const mapRef = inject('mapRef');
 
-const emit = defineEmits(['route-calculated']);
+const emit = defineEmits(['route-calculated', 'route-calculation-started']);
 
 const calculating = ref(false);
 const error = ref(null);
@@ -21,33 +21,33 @@ const bikeTypes = [
   { title: 'Rennrad', value: 'fastbike' }
 ];
 
-/**
- * Toggle start point selection mode
- */
+
 function toggleSelectingPoint() {
   store.toggleSelectingStartPoint();
 }
 
-/**
- * Calculate route through proposed squares
- */
+
 async function handleCalculateRoute() {
   if (!canCalculateRoute.value) return;
 
   console.time('Timer Routing');
   calculating.value = true;
   error.value = null;
-  statusMessage.value = 'Lade Straßendaten...';
+  statusMessage.value = 'Starte Routenberechnung...';
+
+  emit('route-calculation-started');
 
   try {
-    // Get the proposed layer from the map
     const proposedLayer = mapRef.value?.getProposedLayer();
     if (!proposedLayer) {
       throw new Error('Keine vorgeschlagenen Quadrate vorhanden');
     }
 
-    // Get metadata from store to pass grid coordinates
     const proposedMetadata = store.proposedMetadata;
+
+    const onProgress = (message) => {
+      statusMessage.value = message;
+    };
 
     const routeData = await calculateRoute(
       proposedLayer,
@@ -55,10 +55,10 @@ async function handleCalculateRoute() {
       routing.value.bikeType,
       routing.value.roundtrip,
       CONFIG.BROUTER_API_URL,
-      proposedMetadata  // Pass metadata with grid coords
+      proposedMetadata,  
+      onProgress         
     );
 
-    statusMessage.value = 'Route wird berechnet...';
     store.setCurrentRoute(routeData);
     emit('route-calculated', routeData);
 
@@ -71,7 +71,6 @@ async function handleCalculateRoute() {
       const bikeTypeLabel = bikeTypes.find(b => b.value === routing.value.bikeType)?.title || routing.value.bikeType;
       error.value = `${count} Quadrat(e) übersprungen (keine geeigneten Straßen für ${bikeTypeLabel}). Versuche einen anderen Routing-Typ.`;
     }
-    // Show warning if route was simplified
     else if (routeData.simplified) {
       error.value = `Route vereinfacht: ${routeData.waypoints.length} von ${routeData.allSquares.length} Punkten`;
     }

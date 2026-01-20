@@ -68,7 +68,7 @@ async function processKmlContent(kmlContent, filename) {
 
     const layer = L.geoJSON(geojson);
 
-    const { features, allPolygons, candidates } = parseKmlFeatures(layer);
+    const { allPolygons, candidates } = parseKmlFeatures(layer);
 
     const ubersquadrat = findUbersquadrat(candidates);
     if (!ubersquadrat.coords) {

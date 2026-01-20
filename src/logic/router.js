@@ -5,7 +5,6 @@
  * TSP optimization, and road-aware waypoint selection.
  */
 
-import * as turf from '@turf/turf';
 import { solveTSP, calculateRouteDistance } from './tsp-solver.js';
 import { fetchRoadsInArea } from './road-fetcher.js';
 import { optimizeWaypoints, optimizeWaypointsWithSequence, calculateCombinedBounds } from './waypoint-optimizer.js';
@@ -18,7 +17,6 @@ export { callBRouterAPI, parseBRouterResponse };
 
 /**
  * Group squares by cardinal direction to create smaller Overpass queries
- * This avoids loading roads for the entire area including the Übersquadrat
  *
  * @param {Array} squares - Array of square objects with bounds
  * @returns {Array} Array of {direction: string, squares: Array} groups
@@ -27,11 +25,9 @@ function groupSquaresByDirection(squares) {
   if (squares.length === 0) return [];
   if (squares.length === 1) return [{ direction: 'Single', squares }];
 
-  // Calculate overall center point of all squares
   const avgLat = squares.reduce((sum, s) => sum + s.lat, 0) / squares.length;
   const avgLon = squares.reduce((sum, s) => sum + s.lon, 0) / squares.length;
 
-  // Classify each square by direction relative to center
   const north = [];
   const south = [];
   const east = [];
@@ -43,14 +39,12 @@ function groupSquaresByDirection(squares) {
 
     // Determine primary direction (larger difference)
     if (Math.abs(latDiff) > Math.abs(lonDiff)) {
-      // North-South dominant
       if (latDiff > 0) {
         north.push(square);
       } else {
         south.push(square);
       }
     } else {
-      // East-West dominant
       if (lonDiff > 0) {
         east.push(square);
       } else {
@@ -59,7 +53,6 @@ function groupSquaresByDirection(squares) {
     }
   }
 
-  // Build result array (only include non-empty groups)
   const groups = [];
   if (north.length > 0) groups.push({ direction: 'North', squares: north });
   if (south.length > 0) groups.push({ direction: 'South', squares: south });
@@ -85,8 +78,7 @@ export function extractProposedSquares(proposedLayer, proposedMetadata = []) {
       const bounds = layer.getBounds();
       const center = bounds.getCenter();
 
-      // Get grid coordinates from metadata if available
-      const meta = proposedMetadata[squares.length]; // Use current length as index
+      const meta = proposedMetadata[squares.length]; 
       const gridCoords = meta?.gridCoords;
 
       squares.push({
@@ -116,9 +108,10 @@ export function extractProposedSquares(proposedLayer, proposedMetadata = []) {
  * @param {boolean} roundtrip - Whether to return to start
  * @param {string} apiUrl - BRouter API URL
  * @param {Array} proposedMetadata - Optional metadata with grid coordinates
+ * @param {Function} onProgress - Optional callback for progress updates
  * @returns {Promise<Object>} Route data
  */
-export async function calculateRoute(proposedLayer, startPoint, bikeType, roundtrip, apiUrl = 'https://brouter.de/brouter', proposedMetadata = []) {
+export async function calculateRoute(proposedLayer, startPoint, bikeType, roundtrip, apiUrl = 'https://brouter.de/brouter', proposedMetadata = [], onProgress = null) {
   // Step 1: Extract proposed squares with bounds and grid coordinates
   const squares = extractProposedSquares(proposedLayer, proposedMetadata);
 
@@ -126,34 +119,40 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
     throw new Error('Keine vorgeschlagenen Quadrate zum Routen vorhanden');
   }
 
-  // ════════════════════════════════════════════════════════════════
-  // OPTION C: Two-Phase Approach for Optimal Route
-  // ════════════════════════════════════════════════════════════════
+  
   // Phase 1: Find optimal visit order using rough waypoints
   // Phase 2: Optimize waypoints for that specific order
-  // ════════════════════════════════════════════════════════════════
 
   let finalWaypoints;
   let roadFetchFailed = false;
 
   try {
-    // Group squares by cardinal direction to avoid loading roads in the center (Übersquadrat)
     console.time('  ↳ Straßen laden (Overpass API)');
     const squareGroups = groupSquaresByDirection(squares);
 
-    // Fetch roads for each direction in parallel
-    const roadPromises = squareGroups.map(async (group, idx) => {
+    if (onProgress) {
+      onProgress(`Lade Straßendaten für ${squareGroups.length} Gebiet${squareGroups.length > 1 ? 'e' : ''}...`);
+    }
+
+    const roadArrays = [];
+    for (let idx = 0; idx < squareGroups.length; idx++) {
+      const group = squareGroups[idx];
       const groupBounds = calculateCombinedBounds(group.squares.map(s => s.bounds));
+
       try {
-        const roads = await fetchRoadsInArea(groupBounds, bikeType);
-        return roads;
+        const groupProgress = (message) => {
+          if (onProgress) {
+            onProgress(`Gebiet ${idx + 1}/${squareGroups.length}: ${message}`);
+          }
+        };
+
+        const roads = await fetchRoadsInArea(groupBounds, bikeType, 2, groupProgress);
+        roadArrays.push(roads);
       } catch (error) {
         console.warn(`[Router] Failed to fetch roads for ${group.direction}: ${error.message}`);
-        return [];
+        roadArrays.push([]);
       }
-    });
-
-    const roadArrays = await Promise.all(roadPromises);
+    }
 
     // Merge and deduplicate roads by ID
     const roadMap = new Map();
@@ -173,10 +172,14 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
     console.timeEnd('  ↳ Straßen laden (Overpass API)');
 
     if (roads.length > 0) {
-      // ────────────────────────────────────────────────────────────
+
       // PHASE 1: Find optimal visit order
-      // ────────────────────────────────────────────────────────────
+
       console.time('  ↳ Phase 1: Besuchsreihenfolge (TSP)');
+
+      if (onProgress) {
+        onProgress('Berechne optimale Besuchsreihenfolge...');
+      }
 
       // Optimize waypoints WITHOUT sequence (neutral, just find roads)
       const roughOptimization = optimizeWaypoints(squares, roads);
@@ -188,29 +191,27 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
 
       console.timeEnd('  ↳ Phase 1: Besuchsreihenfolge (TSP)');
 
-      // ────────────────────────────────────────────────────────────
       // PHASE 2: Optimize waypoints for this specific order
-      // ────────────────────────────────────────────────────────────
+
       console.time('  ↳ Phase 2: Wegpunktoptimierung');
+
+      if (onProgress) {
+        onProgress('Optimiere Wegpunkte auf Straßen...');
+      }
 
       // Extract squares only from TSP route (remove startPoint)
       let routeSquaresOnly = tspResult.route.filter((waypoint, idx) => {
-        // Skip first point (always startPoint)
         if (idx === 0) return false;
-        // Skip last point if roundtrip (also startPoint)
         if (roundtrip && idx === tspResult.route.length - 1) return false;
         return true;
       });
 
       // Map TSP waypoints back to original squares with bounds
       const orderedSquares = routeSquaresOnly.map((waypoint, idx) => {
-        // Find the original square that matches this waypoint
         const matchingSquare = squares.find(s => {
-          // Match by finding the rough waypoint using pointsMatch utility
           const roughWp = roughWaypoints.find(rw => pointsMatch(rw, waypoint));
           if (!roughWp) return false;
 
-          // Match rough waypoint back to square
           return roughWp.squareIndex !== undefined &&
                  squares[roughWp.squareIndex] === s;
         });
@@ -233,7 +234,6 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
     roadFetchFailed = true;
   }
 
-  // Fallback if road fetch failed: use square centers
   if (roadFetchFailed || !finalWaypoints) {
     const centerWaypoints = squares.map(s => ({ lat: s.lat, lon: s.lon }));
     const tspResult = solveTSP(centerWaypoints, startPoint, roundtrip);
@@ -243,7 +243,6 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
       if (roundtrip && idx === tspResult.route.length - 1) return false;
       return true;
     }).map((wp, i) => {
-      // Find matching square to get gridCoords using pointsMatch utility
       const matchingSquare = squares.find(s => pointsMatch(s, wp));
 
       return {
@@ -262,15 +261,12 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
   const finalDistance = calculateRouteDistance(finalRoute);
   const finalTspResult = { route: finalRoute, distance: finalDistance };
 
-  // Filter out waypoints without roads (can't be routed for this bike type)
-  // Track which squares were skipped by their COORDINATES (not indices)
   const skippedSquareCoords = [];
   const routeWithRoads = [];
 
   for (let i = 0; i < finalTspResult.route.length; i++) {
     const wp = finalTspResult.route[i];
 
-    // Keep start point (use pointsMatch for safe float comparison)
     if (pointsMatch(wp, startPoint)) {
       routeWithRoads.push(wp);
       continue;
@@ -278,7 +274,6 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
 
     // Check if this waypoint has roads
     if (wp.hasRoad === false) {
-      // This is a skipped square - track its coordinates
       skippedSquareCoords.push({
         lat: wp.lat,
         lon: wp.lon,
@@ -292,7 +287,6 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
 
   const skippedCount = skippedSquareCoords.length;
 
-  // Check if we have enough waypoints left
   if (routeWithRoads.length < 2) {
     throw new Error(`Keine geeigneten Straßen für Fahrrad-Typ '${bikeType}' gefunden. Versuche einen anderen Routing-Typ (z.B. Trekking statt Rennrad).`);
   }
@@ -307,6 +301,11 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
 
   // Call BRouter with filtered waypoints
   console.time('  ↳ BRouter API Aufruf');
+
+  if (onProgress) {
+    onProgress('Berechne Fahrradroute mit BRouter...');
+  }
+
   const result = await tryProfilesWithFallback(profilesToTry, routeWithRoads, apiUrl);
   console.timeEnd('  ↳ BRouter API Aufruf');
 
@@ -325,7 +324,6 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
     };
   }
 
-  // If BRouter fails, throw descriptive error
   throw new Error(`BRouter routing failed: ${result.error.message}`);
 }
 

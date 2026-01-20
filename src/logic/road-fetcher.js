@@ -129,9 +129,10 @@ const OVERPASS_INSTANCES = [
  * @param {Object} bounds - {south, west, north, east} or {minLat, maxLat, minLon, maxLon}
  * @param {string} bikeType - 'fastbike', 'gravel', or 'trekking'
  * @param {number} maxRetries - Maximum number of retry attempts per instance
+ * @param {Function} onProgress - Optional callback for progress updates
  * @returns {Promise<Array>} Array of GeoJSON road features
  */
-export async function fetchRoadsInArea(bounds, bikeType = 'trekking', maxRetries = 2) {
+export async function fetchRoadsInArea(bounds, bikeType = 'trekking', maxRetries = 2, onProgress = null) {
   // Normalize bounds format and add buffer (0.01 degrees ~ 1km)
   const normalizedBounds = normalizeBounds(bounds);
   const bufferedBounds = expandBounds(normalizedBounds, 0.01);
@@ -148,17 +149,18 @@ export async function fetchRoadsInArea(bounds, bikeType = 'trekking', maxRetries
                        : apiUrl.includes('kumi.systems') ? 'kumi.systems'
                        : 'openstreetmap.ru';
 
-    console.log(`[RoadFetcher] Trying Overpass instance ${instanceIdx + 1}/${OVERPASS_INSTANCES.length}: ${instanceName}`);
 
     let attempt = 0;
 
-    // Retry loop for this instance
     while (attempt <= maxRetries) {
       attempt++;
       totalAttempts++;
 
       try {
-        console.log(`[RoadFetcher] Attempt ${attempt}/${maxRetries + 1} on ${instanceName}...`);
+
+        if (onProgress) {
+          onProgress(`Server ${instanceIdx + 1}/${OVERPASS_INSTANCES.length}, Versuch ${attempt}/${maxRetries + 1}`);
+        }
 
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -198,7 +200,6 @@ export async function fetchRoadsInArea(bounds, bikeType = 'trekking', maxRetries
           return roads;
         }
 
-        // No roads but retries remaining - mark for retry
         console.warn(`[RoadFetcher] 0 roads returned from ${instanceName} (attempt ${attempt})`);
         if (attempt <= maxRetries) {
           const error = new Error(`0 roads returned`);
@@ -206,23 +207,20 @@ export async function fetchRoadsInArea(bounds, bikeType = 'trekking', maxRetries
           throw error;
         }
 
-        // Last attempt on this instance - try next instance
         break;
 
       } catch (error) {
         lastError = error;
 
-        // Should we retry?
         const shouldRetry = error.shouldRetry || error.name === 'TypeError' || error.message.includes('Failed to fetch');
 
         if (shouldRetry && attempt <= maxRetries) {
           const delay = 2000;
           console.log(`[RoadFetcher] Retrying in ${delay / 1000}s...`);
           await new Promise(resolve => setTimeout(resolve, delay));
-          continue; // Retry same instance
+          continue; 
         }
 
-        // No more retries on this instance - try next instance
         console.warn(`[RoadFetcher] Failed on ${instanceName} after ${attempt} attempts: ${error.message}`);
         break;
       }
