@@ -66,7 +66,7 @@ function openInBikeRouter() {
     // Map bike type to BikeRouter profile
     const profileMap = {
       trekking: 'trekking',
-      gravel: 'gravel',
+      Mountainbike: 'MTB',
       fastbike: 'fastbike'
     };
     const profile = profileMap[routing.value.bikeType] || 'trekking';

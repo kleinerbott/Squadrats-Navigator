@@ -82,9 +82,6 @@ export function solveTSP(points, startPoint, roundtrip = false, optimize = true)
 /**
  * 2-opt optimization to improve route by removing crossing paths.
  *
- * Instead of recalculating the entire route distance for each swap attempt,
- * we only compare the 4 affected edges (O(1) instead of O(n) per check).
- *
  * @param {Array} route - Initial route as array of {lat, lon} points
  * @param {number} maxIterations - Maximum optimization iterations
  * @returns {Array} Optimized route

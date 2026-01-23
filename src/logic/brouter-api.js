@@ -9,7 +9,7 @@
  * Call BRouter API to calculate bicycle route
  *
  * @param {Array} waypoints - Array of {lat, lon} waypoints
- * @param {string} profile - BRouter profile (trekking, gravel, fastbike)
+ * @param {string} profile - BRouter profile (trekking, mtb, fastbike)
  * @param {string} apiUrl - BRouter API base URL
  * @returns {Promise<Object>} Route data (GeoJSON format)
  */

@@ -436,7 +436,7 @@ function findBestWaypointWithNeighbors(roadsInSquare, square, prevPoint, nextPoi
   const coords = best.point.geometry.coordinates;
 
   if (best.isConnecting) {
-    console.log(`[WaypointOptimizer] ✓ Selected ${best.type} waypoint on CONNECTING road (priority ${best.priority})`);
+    console.log(`[WaypointOptimizer] Selected ${best.type} waypoint on CONNECTING road (priority ${best.priority})`);
   }
 
   return {
@@ -582,7 +582,7 @@ export function optimizeWaypointsWithSequence(orderedSquares, roads, startPoint 
   }
 
   // Log summary statistics
-  console.log(`[WaypointOptimizer] ✓ Optimization complete:`);
+  console.log(`[WaypointOptimizer] Optimization complete:`);
   console.log(`  - ${results.statistics.connectingRoads}/${results.statistics.total} waypoints on connecting roads`);
   console.log(`  - ${results.statistics.intersections} intersections, ${results.statistics.midpoints} midpoints, ${results.statistics.nearest} nearest points`);
   console.log(`  - ${results.statistics.withRoads} with roads, ${results.statistics.withoutRoads} fallback to center`);

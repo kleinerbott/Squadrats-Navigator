@@ -6,7 +6,7 @@ import { calculateRoute } from '../logic/router';
 import { CONFIG } from '../logic/config';
 
 const store = useAppStore();
-const { routing, canCalculateRoute, startPointFormatted, proposedSquares, settings } = storeToRefs(store);
+const { routing, canCalculateRoute, startPointFormatted, isReady, kmlLoading } = storeToRefs(store);
 const mapRef = inject('mapRef');
 
 const emit = defineEmits(['route-calculated', 'route-calculation-started']);
@@ -112,6 +112,7 @@ async function handleCalculateRoute() {
       size="large"
       :color="routing.selectingStartPoint ? 'error' : 'secondary'"
       :variant="routing.selectingStartPoint ? 'flat' : 'outlined'"
+      :disabled="!isReady || kmlLoading"
       prepend-icon="mdi-map-marker"
       class="mt-3"
       @click="toggleSelectingPoint"

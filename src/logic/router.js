@@ -103,7 +103,7 @@ export function extractProposedSquares(proposedLayer, proposedMetadata = []) {
  *
  * @param {L.LayerGroup} proposedLayer - Layer with proposed squares
  * @param {Object} startPoint - Starting point {lat, lon}
- * @param {string} bikeType - Bike profile (trekking, gravel, fastbike)
+ * @param {string} bikeType - Bike profile (trekking, mtb, fastbike)
  * @param {boolean} roundtrip - Whether to return to start
  * @param {string} apiUrl - BRouter API URL
  * @param {Array} proposedMetadata - Optional metadata with grid coordinates

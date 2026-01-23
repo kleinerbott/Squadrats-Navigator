@@ -356,8 +356,7 @@ export function optimizeSquare(
     let holeCompletionBonus = 0;
 
     if (hole) {
-      // Apply layer-based reduction (normalized to be comparable to edge bonus)
-      let holeMultiplier = 200;   // max 4,000 for size 20
+      let holeMultiplier = 200;   // max 2,000 for size 10
       if (layerDistance >= 3) holeMultiplier = 150;
       if (layerDistance >= 5) holeMultiplier = 75;
 

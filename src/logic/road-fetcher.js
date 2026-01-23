@@ -14,10 +14,10 @@ const ROAD_FILTERS = {
     description: 'Paved roads only - suitable for road bikes'
   },
 
-  gravel: {
+  hikingmountain: {
     highways: 'primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified|residential|living_street|cycleway|service|track|path|bridleway',
     excludeSurfaces: 'mud|sand',
-    description: 'Paved and unpaved roads suitable for gravel bikes'
+    description: 'Paved and unpaved roads suitable for mountain bikes'
   },
 
   trekking: {
@@ -30,7 +30,7 @@ const ROAD_FILTERS = {
 /**
  * Build Overpass query for roads in a bounding box
  * @param {Object} bounds - {south, west, north, east}
- * @param {string} bikeType - 'fastbike', 'gravel', or 'trekking'
+ * @param {string} bikeType - 'fastbike', 'mtb', or 'trekking'
  * @returns {string} Overpass QL query
  */
 function buildOverpassQuery(bounds, bikeType) {
@@ -51,7 +51,7 @@ function buildOverpassQuery(bounds, bikeType) {
      (${bbox});
 
   // Major roads (primary/secondary) without bad surface tags (assumed paved)
-  way["highway"~"^(primary|primary_link|secondary|secondary_link|tertiary|tertiary_link|unclassified)$"]
+  way["highway"~"^(primary|primary_link|secondary|secondary_link|tertiary|residential|tertiary_link|unclassified)$"]
      ["bicycle"!="no"]
      ["access"!="private"]
      ["motor_vehicle"!="designated"]
@@ -64,7 +64,7 @@ out body geom;
     return query;
   }
 
-  // Build the query with bike-type specific filters (for gravel/trekking)
+  // Build the query with bike-type specific filters (for mtb/trekking)
   const query = `
 [out:json][timeout:30];
 (
@@ -120,14 +120,14 @@ function overpassToGeoJSON(overpassData) {
 // Multiple Overpass API instances as fallback
 const OVERPASS_INSTANCES = [
   'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
   'https://overpass.openstreetmap.ru/api/interpreter'
 ];
 
 /**
  * Fetch roads from Overpass API for a bounding box with retry logic
  * @param {Object} bounds - {south, west, north, east} or {minLat, maxLat, minLon, maxLon}
- * @param {string} bikeType - 'fastbike', 'gravel', or 'trekking'
+ * @param {string} bikeType - 'fastbike', 'mtb', or 'trekking'
  * @param {number} maxRetries - Maximum number of retry attempts per instance
  * @param {Function} onProgress - Optional callback for progress updates
  * @returns {Promise<Array>} Array of GeoJSON road features
@@ -145,7 +145,7 @@ export async function fetchRoadsInArea(bounds, bikeType = 'trekking', maxRetries
   for (let instanceIdx = 0; instanceIdx < OVERPASS_INSTANCES.length; instanceIdx++) {
     const apiUrl = OVERPASS_INSTANCES[instanceIdx];
     const instanceName = apiUrl.includes('overpass-api.de') ? 'overpass-api.de'
-                       : apiUrl.includes('kumi.systems') ? 'kumi.systems'
+                       : apiUrl.includes('private.coffee') ? 'Private.Coffee'
                        : 'openstreetmap.ru';
 
 
@@ -195,7 +195,7 @@ export async function fetchRoadsInArea(bounds, bikeType = 'trekking', maxRetries
 
         // Success - return roads
         if (roads.length > 0) {
-          console.log(`[RoadFetcher] ✓ Success: ${roads.length} roads from ${instanceName} (attempt ${attempt})`);
+          console.log(`[RoadFetcher] Success: ${roads.length} roads from ${instanceName} (attempt ${attempt})`);
           return roads;
         }
 
