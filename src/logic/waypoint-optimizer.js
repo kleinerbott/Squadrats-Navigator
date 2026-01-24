@@ -153,13 +153,11 @@ function findBestWaypointOnRoads(roadsInSquare, square) {
     return distA - distB;
   });
 
-  // Return best candidate
+  // Return only best candidate (Phase 1 doesn't need alternatives - they're collected in Phase 2)
   const best = candidates[0];
-  const coords = best.point.geometry.coordinates;
-
   return {
-    lat: coords[1],
-    lon: coords[0],
+    lat: best.point.geometry.coordinates[1],
+    lon: best.point.geometry.coordinates[0],
     type: best.type
   };
 }
@@ -200,8 +198,9 @@ export function optimizeWaypoints(squares, roads) {
         results.waypoints.push({
           ...waypoint,
           squareIndex: i,
-          gridCoords: square.gridCoords, // Use grid coords for unique identification
+          gridCoords: square.gridCoords,
           hasRoad: true
+          // No alternatives here - they're collected in Phase 2
         });
         results.statistics.withRoads++;
 
@@ -431,20 +430,14 @@ function findBestWaypointWithNeighbors(roadsInSquare, square, prevPoint, nextPoi
     });
   }
 
-  // Return best candidate
-  const best = candidates[0];
-  const coords = best.point.geometry.coordinates;
-
-  if (best.isConnecting) {
-    console.log(`[WaypointOptimizer] Selected ${best.type} waypoint on CONNECTING road (priority ${best.priority})`);
-  }
-
-  return {
-    lat: coords[1],
-    lon: coords[0],
-    type: best.type,
-    isConnecting: best.isConnecting || false  // Pass through isConnecting flag
-  };
+  // Return top 5 candidates (sorted by priority) for alternating optimization
+  return candidates.slice(0, 3).map(c => ({
+    lat: c.point.geometry.coordinates[1],
+    lon: c.point.geometry.coordinates[0],
+    type: c.type,
+    priority: c.priority,
+    isConnecting: c.isConnecting || false
+  }));
 }
 
 /**
@@ -524,21 +517,25 @@ export function optimizeWaypointsWithSequence(orderedSquares, roads, startPoint 
     }
 
     if (roadsInSquare.length > 0) {
-      const waypoint = findBestWaypointWithNeighbors(roadsInSquare, square, prevPoint, nextPoint, nextSquare);
+      const candidates = findBestWaypointWithNeighbors(roadsInSquare, square, prevPoint, nextPoint, nextSquare);
 
-      if (waypoint) {
+      if (candidates && candidates.length > 0) {
+        const primary = candidates[0];
+        const alternatives = candidates.slice(1);
+
         results.waypoints.push({
-          ...waypoint,
+          ...primary,
           squareIndex: i,
-          gridCoords: square.gridCoords, // Use grid coords for unique identification
-          hasRoad: true
+          gridCoords: square.gridCoords,
+          hasRoad: true,
+          alternatives: alternatives  // Store alternative candidates for refinement
         });
         results.statistics.withRoads++;
 
         // Track waypoint type statistics
-        if (waypoint.type === 'intersection' || waypoint.type === 'intersection-connecting') {
+        if (primary.type === 'intersection' || primary.type === 'intersection-connecting') {
           results.statistics.intersections++;
-        } else if (waypoint.type === 'midpoint' || waypoint.type === 'midpoint-connecting') {
+        } else if (primary.type === 'midpoint' || primary.type === 'midpoint-connecting') {
           results.statistics.midpoints++;
         } else {
           results.statistics.nearest++;
@@ -550,7 +547,7 @@ export function optimizeWaypointsWithSequence(orderedSquares, roads, startPoint 
         }
 
         // Count if waypoint is on a connecting road
-        if (waypoint.isConnecting) {
+        if (primary.isConnecting) {
           results.statistics.connectingRoads++;
         }
       } else {

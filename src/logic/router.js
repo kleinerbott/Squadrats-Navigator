@@ -5,8 +5,8 @@
  * TSP optimization, and road-aware waypoint selection.
  */
 
-import { solveTSP, calculateRouteDistance } from './tsp-solver.js';
-import { fetchRoadsInArea } from './road-fetcher.js';
+import { solveTSP, calculateRouteDistance, refineCandidates, twoOptOptimize } from './tsp-solver.js';
+import { fetchRoadsFromInstance, OVERPASS_INSTANCES } from './road-fetcher.js';
 import { optimizeWaypoints, optimizeWaypointsWithSequence, calculateCombinedBounds } from './waypoint-optimizer.js';
 import { pointsMatch } from './bounds-utils.js';
 import { callBRouterAPI, parseBRouterResponse } from './brouter-api.js';
@@ -130,44 +130,71 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
     const squareGroups = groupSquaresByDirection(squares);
 
     if (onProgress) {
-      onProgress(`Lade Straßendaten für ${squareGroups.length} Gebiet${squareGroups.length > 1 ? 'e' : ''}...`);
+      onProgress(`Lade Straßendaten für ${squareGroups.length} Gebiet${squareGroups.length > 1 ? 'e' : ''} parallel...`);
     }
 
-    const roadArrays = [];
-    for (let idx = 0; idx < squareGroups.length; idx++) {
-      const group = squareGroups[idx];
+    // Distribute requests across first 2 instances (rate limit: 2 immediate per instance)
+    const primaryInstances = OVERPASS_INSTANCES.slice(0, 2);
+    const fallbackInstance = OVERPASS_INSTANCES[2];
+
+    // Prepare parallel fetch promises - distribute round-robin across 2 instances
+    const fetchPromises = squareGroups.map((group, idx) => {
+      const instanceUrl = primaryInstances[idx % primaryInstances.length];
       const groupBounds = calculateCombinedBounds(group.squares.map(s => s.bounds));
 
-      try {
-        const groupProgress = (message) => {
-          if (onProgress) {
-            onProgress(`Gebiet ${idx + 1}/${squareGroups.length}: ${message}`);
-          }
-        };
+      return fetchRoadsFromInstance(groupBounds, bikeType, instanceUrl, 2, (msg) => {
+        if (onProgress) onProgress(`${group.direction}: ${msg}`);
+      }).then(result => ({ ...result, group, groupBounds }));
+    });
 
-        const roads = await fetchRoadsInArea(groupBounds, bikeType, 2, groupProgress);
-        roadArrays.push(roads);
-      } catch (error) {
-        console.warn(`[Router] Failed to fetch roads for ${group.direction}: ${error.message}`);
-        roadArrays.push([]);
+    // Execute all fetches in parallel
+    console.log(`[Router] Fetching ${squareGroups.length} groups in parallel across ${primaryInstances.length} instances`);
+    const results = await Promise.all(fetchPromises);
+
+    // Check for failures and retry on fallback instance
+    const failedGroups = results.filter(r => !r.success);
+    if (failedGroups.length > 0 && fallbackInstance) {
+      console.log(`[Router] ${failedGroups.length} group(s) failed, retrying on fallback instance...`);
+
+      if (onProgress) {
+        onProgress(`${failedGroups.length} fehlgeschlagen, versuche Backup-Server...`);
+      }
+
+      // Retry failed groups on fallback instance (sequentially to avoid overloading)
+      for (const failed of failedGroups) {
+        const retryResult = await fetchRoadsFromInstance(
+          failed.groupBounds,
+          bikeType,
+          fallbackInstance,
+          2,
+          (msg) => { if (onProgress) onProgress(`Backup ${failed.group.direction}: ${msg}`); }
+        );
+
+        // Update the result in place
+        const idx = results.findIndex(r => r.group === failed.group);
+        if (idx !== -1 && retryResult.success) {
+          results[idx] = { ...retryResult, group: failed.group, groupBounds: failed.groupBounds };
+          console.log(`[Router] Fallback succeeded for ${failed.group.direction}`);
+        }
       }
     }
 
     // Merge and deduplicate roads by ID
     const roadMap = new Map();
-    for (const roadArray of roadArrays) {
-      for (const road of roadArray) {
+    for (const result of results) {
+      for (const road of (result.roads || [])) {
         const id = road.properties?.id;
         if (id && !roadMap.has(id)) {
           roadMap.set(id, road);
         } else if (!id) {
-          // Roads without ID - add them anyway
           roadMap.set(Math.random(), road);
         }
       }
     }
     const roads = Array.from(roadMap.values());
 
+    const successCount = results.filter(r => r.success).length;
+    console.log(`[Router] Parallel fetch complete: ${successCount}/${squareGroups.length} succeeded, ${roads.length} roads total`);
     console.timeEnd('  ↳ Straßen laden (Overpass API)');
 
     if (roads.length > 0) {
@@ -222,6 +249,37 @@ export async function calculateRoute(proposedLayer, startPoint, bikeType, roundt
       finalWaypoints = fineOptimization.waypoints;
 
       console.timeEnd('  ↳ Phase 2: Wegpunktoptimierung');
+
+      // Phase 3: Alternating optimization - refine candidates and re-run 2-opt
+      console.time('  ↳ Phase 3: Alternating Optimization');
+
+      let currentRoute = [startPoint, ...finalWaypoints, ...(roundtrip ? [startPoint] : [])];
+      let lastDistance = calculateRouteDistance(currentRoute);
+
+      for (let round = 0; round < 3; round++) {
+        // Step 1: Try swapping candidates (uses total route distance)
+        const refined = refineCandidates(currentRoute);
+
+        if (refined.swaps === 0 && round > 0) {
+          // No improvements found, converged
+          break;
+        }
+
+        // Step 2: Re-run 2-opt to check if order should change
+        currentRoute = twoOptOptimize(refined.route);
+
+        const newDistance = calculateRouteDistance(currentRoute);
+        if (newDistance >= lastDistance - 0.01) {
+          // Converged - no significant improvement
+          break;
+        }
+        lastDistance = newDistance;
+      }
+
+      // Extract final waypoints (remove start/end points)
+      finalWaypoints = currentRoute.slice(1, roundtrip ? -1 : undefined);
+
+      console.timeEnd('  ↳ Phase 3: Alternating Optimization');
 
     } else {
       console.warn('[Router] No roads found in area - falling back to centers');

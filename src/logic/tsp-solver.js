@@ -81,6 +81,7 @@ export function solveTSP(points, startPoint, roundtrip = false, optimize = true)
 
 /**
  * 2-opt optimization to improve route by removing crossing paths.
+ * Uses full-scan approach: checks all pairs each iteration and applies all improvements.
  *
  * @param {Array} route - Initial route as array of {lat, lon} points
  * @param {number} maxIterations - Maximum optimization iterations
@@ -89,17 +90,20 @@ export function solveTSP(points, startPoint, roundtrip = false, optimize = true)
 export function twoOptOptimize(route, maxIterations = 100) {
   if (route.length < 4) return route;
 
+  const initialDistance = calculateRouteDistance(route);
   const optimizedRoute = [...route];
   const n = optimizedRoute.length;
   let improved = true;
   let iterations = 0;
+  let totalSwaps = 0;
 
   while (improved && iterations < maxIterations) {
     improved = false;
     iterations++;
 
-    for (let i = 1; i < n - 2 && !improved; i++) {
-      for (let j = i + 1; j < n - 1 && !improved; j++) {
+    // Full scan: check ALL pairs each iteration (not just first improvement)
+    for (let i = 1; i < n - 2; i++) {
+      for (let j = i + 1; j < n - 1; j++) {
         const [a, b, c, d] = [optimizedRoute[i - 1], optimizedRoute[i], optimizedRoute[j], optimizedRoute[j + 1]];
 
         const currentCost =
@@ -115,12 +119,85 @@ export function twoOptOptimize(route, maxIterations = 100) {
           const reversed = optimizedRoute.slice(i, j + 1).reverse();
           optimizedRoute.splice(i, j - i + 1, ...reversed);
           improved = true;
+          totalSwaps++;
         }
       }
     }
   }
 
   const finalDistance = calculateRouteDistance(optimizedRoute);
-  console.log(`2-opt: ${iterations} iterations, ${finalDistance.toFixed(2)} km`);
+  const improvement = ((initialDistance - finalDistance) / initialDistance * 100).toFixed(1);
+  console.log(`2-opt: ${iterations} iterations, ${totalSwaps} swaps, ${initialDistance.toFixed(2)} → ${finalDistance.toFixed(2)} km (${improvement}% improvement)`);
   return optimizedRoute;
+}
+
+/**
+ * Refine waypoint candidates by testing alternatives and swapping if total route improves.
+ * Uses TOTAL route distance (not just local prev→current→next) to capture global effects.
+ *
+ * @param {Array} route - Route array where waypoints may have .alternatives
+ * @param {number} maxIterations - Maximum refinement iterations
+ * @returns {Object} { route, iterations, swaps, distance }
+ */
+export function refineCandidates(route, maxIterations = 10) {
+  if (route.length < 3) return { route, iterations: 0, swaps: 0, distance: calculateRouteDistance(route) };
+
+  // Count total alternatives available
+  const totalAlternatives = route.reduce((sum, wp) => sum + (wp.alternatives?.length || 0), 0);
+  const waypointsWithAlts = route.filter(wp => wp.alternatives?.length > 0).length;
+  console.log(`Candidate refinement: ${waypointsWithAlts} waypoints with ${totalAlternatives} total alternatives`);
+
+  let improved = true;
+  let iterations = 0;
+  let totalSwaps = 0;
+  let currentDistance = calculateRouteDistance(route);
+  const initialDistance = currentDistance;
+
+  while (improved && iterations < maxIterations) {
+    improved = false;
+    iterations++;
+
+    // Try swapping each waypoint with its alternatives
+    for (let i = 1; i < route.length - 1; i++) {
+      const wp = route[i];
+      if (!wp.alternatives || wp.alternatives.length === 0) continue;
+
+      for (const alt of wp.alternatives) {
+        // Create test route with alternative candidate
+        const testRoute = route.map((p, idx) => {
+          if (idx === i) {
+            return { ...p, lat: alt.lat, lon: alt.lon, type: alt.type };
+          }
+          return p;
+        });
+
+        const newDistance = calculateRouteDistance(testRoute);
+
+        // Accept if improvement (with small tolerance to avoid floating point issues)
+        if (newDistance < currentDistance - 0.001) {
+          // Swap: move current position to alternatives, promote alt to primary
+          const oldCandidate = { lat: wp.lat, lon: wp.lon, type: wp.type, priority: wp.priority };
+          wp.alternatives = [oldCandidate, ...wp.alternatives.filter(a => a !== alt)];
+          wp.lat = alt.lat;
+          wp.lon = alt.lon;
+          wp.type = alt.type;
+          if (alt.priority !== undefined) wp.priority = alt.priority;
+
+          currentDistance = newDistance;
+          improved = true;
+          totalSwaps++;
+          break; // Re-evaluate from start after a swap
+        }
+      }
+
+      if (improved) break; // Restart outer loop after improvement
+    }
+  }
+
+  if (totalSwaps > 0) {
+    const improvement = ((initialDistance - currentDistance) / initialDistance * 100).toFixed(1);
+    console.log(`Candidate refinement: ${iterations} iterations, ${totalSwaps} swaps, ${initialDistance.toFixed(2)} → ${currentDistance.toFixed(2)} km (${improvement}% improvement)`);
+  }
+
+  return { route, iterations, swaps: totalSwaps, distance: currentDistance };
 }

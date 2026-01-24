@@ -42,12 +42,13 @@ function rectFromIJ(i, j, originLat, originLon, LAT_STEP, LON_STEP) {
 
 /**
  * Calculate layer distance from Übersquadrat border
- * Returns {distI, distJ, total} where total is Manhattan distance
+ * Returns {distI, distJ, total} where total is Chebyshev distance (max, not sum)
+ * This ensures corners are in the same layer as edges, forming complete rings
  */
 function calculateLayerDistance(i, j, base) {
   const distI = Math.max(0, Math.max(base.minI - i - 1, i - base.maxI - 1));
   const distJ = Math.max(0, Math.max(base.minJ - j - 1, j - base.maxJ - 1));
-  return { distI, distJ, total: distI + distJ };
+  return { distI, distJ, total: Math.max(distI, distJ) };
 }
 
 /**
