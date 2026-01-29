@@ -216,7 +216,7 @@ function showRoute(routeData) {
       if (hasRoad) roadAwareCount++;
       else fallbackCount++;
 
-      
+
       const markerIcon = L.divIcon({
         className: 'waypoint-marker',
         html: `<div style="
@@ -224,55 +224,24 @@ function showRoute(routeData) {
           color: white;
           border: 2px solid white;
           border-radius: 50%;
-          width: 24px;
-          height: 24px;
+          width: 18px;
+          height: 18px;
           display: flex;
           align-items: center;
           justify-content: center;
           font-weight: bold;
-          font-size: 12px;
+          font-size: 10px;
           box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-          cursor: pointer;
         ">${index}</div>`,
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
       });
-
-      let tooltipContent = `<b>Wegpunkt ${index}</b><br>`;
-      tooltipContent += `Typ: ${wp.type || 'unknown'}<br>`;
-      if (wp.priority !== undefined) {
-        tooltipContent += `Priorität: ${wp.priority}<br>`;
-      }
-      tooltipContent += `Lat: ${wp.lat.toFixed(6)}<br>`;
-      tooltipContent += `Lon: ${wp.lon.toFixed(6)}`;
-
-      if (wp.alternatives && wp.alternatives.length > 0) {
-        tooltipContent += `<br><i style="color: #1ACF;">${wp.alternatives.length} Alternativen</i>`;
-      }
 
       const marker = L.marker([wp.lat, wp.lon], {
         icon: markerIcon,
-        zIndexOffset: 1000 
+        zIndexOffset: 1000
       });
-      marker.bindTooltip(tooltipContent, { permanent: false, direction: 'top' });
       marker.addTo(layers.route);
-
-      if (wp.alternatives && wp.alternatives.length > 0) {
-        wp.alternatives.forEach((alt, altIndex) => {
-          L.circleMarker([alt.lat, alt.lon], {
-            radius: 4,
-            fillColor: '#1ACF',
-            color: '#ffffff',
-            weight: 1,
-            opacity: 0.8,
-            fillOpacity: 0.6,
-            zIndexOffset: 900 // Below main waypoints but above route line
-          }).bindTooltip(`Alt ${index}.${altIndex + 1}: ${alt.type}<br>Priority: ${alt.priority || 'N/A'}`, {
-            permanent: false,
-            direction: 'top'
-          }).addTo(layers.route);
-        });
-      }
     });
   }
 }
