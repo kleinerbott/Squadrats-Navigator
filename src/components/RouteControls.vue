@@ -30,7 +30,6 @@ function toggleSelectingPoint() {
 async function handleCalculateRoute() {
   if (!canCalculateRoute.value) return;
 
-  console.time('Timer Routing');
   calculating.value = true;
   error.value = null;
   statusMessage.value = 'Starte Routenberechnung...';
@@ -62,7 +61,6 @@ async function handleCalculateRoute() {
     store.setCurrentRoute(routeData);
     emit('route-calculated', routeData);
 
-    console.timeEnd('Timer Routing');
     statusMessage.value = null;
 
     // Show warning if squares were skipped due to missing roads
@@ -76,7 +74,6 @@ async function handleCalculateRoute() {
     }
   } catch (err) {
     console.error('Route calculation error:', err);
-    console.timeEnd('Timer Routing');
     statusMessage.value = null;
     error.value = err.message;
   } finally {

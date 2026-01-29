@@ -21,7 +21,6 @@ function handleOptimize() {
     return;
   }
 
-  console.time('Timer Quadrate finden (Optimierung)');
 
   const result = optimizeSquare(
     baseSquare.value,
@@ -39,7 +38,6 @@ function handleOptimize() {
   store.setProposedSquares(result);
   emit('optimized', result);
 
-  console.timeEnd('Timer Quadrate finden (Optimierung)');
 }
 </script>
 
