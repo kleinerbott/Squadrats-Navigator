@@ -16,9 +16,6 @@ const optimizationModes = [
   { title: 'Locher fullen', value: 'holes' }
 ];
 
-/**
- * Run optimization and emit results
- */
 function handleOptimize() {
   if (!isReady.value || !baseSquare.value) {
     return;

@@ -8,9 +8,6 @@ const props = defineProps({
   }
 });
 
-/**
- * Format time as HH:MM
- */
 const formattedTime = computed(() => {
   const minutes = props.route.time;
   const hours = Math.floor(minutes / 60);

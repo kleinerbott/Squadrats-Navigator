@@ -1,8 +1,3 @@
-/**
- * Road Fetcher Module
- * Fetches road data from Overpass API with bike-type specific filters
- */
-
 import { normalizeBounds, expandBounds } from './bounds-utils.js';
 
 const ROAD_FILTERS = {
@@ -64,7 +59,6 @@ out body geom;
     return query;
   }
 
-  // Build the query with bike-type specific filters (for mtb/trekking)
   const query = `
 [out:json][timeout:30];
 (
@@ -95,7 +89,6 @@ function overpassToGeoJSON(overpassData) {
 
   for (const element of overpassData.elements) {
     if (element.type === 'way' && element.geometry) {
-      // Convert to GeoJSON LineString
       const coordinates = element.geometry.map(node => [node.lon, node.lat]);
 
       features.push({
@@ -117,8 +110,6 @@ function overpassToGeoJSON(overpassData) {
   return features;
 }
 
-// Multiple Overpass API instances - exported for parallel distribution
-// Rate limits are per-instance, so distributing requests across instances avoids cooldowns
 export const OVERPASS_INSTANCES = [
   'https://overpass-api.de/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
@@ -188,17 +179,16 @@ export async function fetchRoadsFromInstance(bounds, bikeType, instanceUrl, maxR
       const roads = overpassToGeoJSON(data);
 
       if (roads.length > 0) {
-        console.log(`[RoadFetcher] ${instanceName}: ${roads.length} roads (attempt ${attempt})`);
         return { roads, success: true, error: null, instanceUrl };
       }
 
-      // Zero roads - might be temporary, retry
+    
       if (attempt <= maxRetries) {
         await new Promise(resolve => setTimeout(resolve, 1000));
         continue;
       }
 
-      return { roads: [], success: true, error: null, instanceUrl }; // Success but empty
+      return { roads: [], success: true, error: null, instanceUrl }; 
 
     } catch (error) {
       lastError = error;

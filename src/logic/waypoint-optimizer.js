@@ -12,9 +12,7 @@ function squareToPolygon(square) {
   return turf.bboxPolygon([bounds.west, bounds.south, bounds.east, bounds.north]);
 }
 
-/**
- * Create fallback waypoint at square center
- */
+
 function createFallbackWaypoint(square, index, type = 'no-road') {
   const center = getBoundsCenter(square);
   return {
@@ -26,9 +24,7 @@ function createFallbackWaypoint(square, index, type = 'no-road') {
   };
 }
 
-/**
- * Format candidate as waypoint object
- */
+
 function formatCandidate(candidate) {
   return {
     lat: candidate.point.geometry.coordinates[1],
@@ -204,7 +200,6 @@ function collectCandidates(roadsInSquare, square, connectingRoads = new Set()) {
  */
 function sortCandidates(candidates, prevPoint, nextPoint, squareCenter) {
   candidates.sort((a, b) => {
-    // Primary sort: Priority (descending)
     if (b.priority !== a.priority) {
       return b.priority - a.priority;
     }
@@ -387,7 +382,7 @@ export function optimizeWaypoints(squares, roads) {
 /**
  * Optimize waypoints considering the route sequence (Phase 2)
  * Sequence-aware optimization - considers previous and next squares in route
- * Used after TSP has determined the final visit order
+ * Used after TSP has determined the initial visit order
  *
  * @param {Array} orderedSquares - Squares in TSP visit order (with lat, lon, bounds)
  * @param {Array} roads - Array of GeoJSON road features
@@ -496,11 +491,13 @@ export function optimizeWaypointsWithSequence(orderedSquares, roads, startPoint 
     }
   }
 
-  // Log summary statistics
-  console.log(`[WaypointOptimizer] Optimization complete:`);
-  console.log(`  - ${results.statistics.connectingRoads}/${results.statistics.total} waypoints on connecting roads`);
-  console.log(`  - ${results.statistics.intersections} intersections, ${results.statistics.midpoints} midpoints, ${results.statistics.nearest} nearest points`);
-  console.log(`  - ${results.statistics.withRoads} with roads, ${results.statistics.withoutRoads} fallback to center`);
+  // Debug: Summary statistics
+  if (CONFIG.DEBUG_WAYPOINT_CANDIDATES) {
+    console.log(`[WaypointOptimizer] Optimization complete:`);
+    console.log(`  - ${results.statistics.connectingRoads}/${results.statistics.total} waypoints on connecting roads`);
+    console.log(`  - ${results.statistics.intersections} intersections, ${results.statistics.midpoints} midpoints, ${results.statistics.nearest} nearest points`);
+    console.log(`  - ${results.statistics.withRoads} with roads, ${results.statistics.withoutRoads} fallback to center`);
+  }
 
   // Debug: Summary table of all waypoints
   if (CONFIG.DEBUG_WAYPOINT_CANDIDATES) {

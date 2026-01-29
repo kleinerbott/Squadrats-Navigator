@@ -1,12 +1,5 @@
-/**
- * KML Processing Module
- * Handles parsing and processing of KML files using Turf.js for geometry operations
- */
-
 import * as turf from '@turf/turf';
 import { CONFIG } from './config.js';
-
-// ===== GEOMETRY HELPER FUNCTIONS =====
 
 /**
  * Calculates bounding box from coordinates
@@ -31,10 +24,8 @@ export function calculateBounds(coords) {
  * @returns {boolean} True if point is inside polygon and not in any hole
  */
 export function isPointInPolygonWithHoles(lat, lon, polygon) {
-  // Convert to Turf.js format: [lon, lat] and polygon with holes
   const point = turf.point([lon, lat]);
 
-  // Build polygon coordinates: outer ring + holes, all in [lon, lat] format
   const outerRing = polygon.outer.map(c => [c[1], c[0]]);
   if (outerRing[0][0] !== outerRing[outerRing.length - 1][0] ||
       outerRing[0][1] !== outerRing[outerRing.length - 1][1]) {
@@ -43,7 +34,6 @@ export function isPointInPolygonWithHoles(lat, lon, polygon) {
 
   const rings = [outerRing];
 
-  // Add holes
   for (const hole of polygon.holes) {
     const holeRing = hole.map(c => [c[1], c[0]]);
     if (holeRing[0][0] !== holeRing[holeRing.length - 1][0] ||
@@ -77,13 +67,10 @@ export function calculateArea(coords) {
     const polygon = turf.polygon([turfCoords]);
     return turf.area(polygon);
   } catch (e) {
-    // Fallback to bounding box area approximation
     const bounds = calculateBounds(coords);
     return (bounds.maxLat - bounds.minLat) * (bounds.maxLon - bounds.minLon);
   }
 }
-
-// ===== POLYGON EXTRACTION =====
 
 /**
  * Extracts polygon data from different geometry types
@@ -113,8 +100,6 @@ export function extractPolygons(geometry) {
 
   return polygons;
 }
-
-// ===== KML PROCESSING FUNCTIONS =====
 
 /**
  * Parse KML layer and extract features, polygons, and ubersquadrat candidates
@@ -149,7 +134,6 @@ export function parseKmlFeatures(layer) {
       if (polygonsToProcess.length === 0) return;
 
       polygonsToProcess.forEach(polyData => {
-        // Convert [lon, lat] → [lat, lon]
         const outerLatLon = polyData.outer.map(c => [c[1], c[0]]);
         const holesLatLon = polyData.holes.map(hole => hole.map(c => [c[1], c[0]]));
 
@@ -173,7 +157,7 @@ export function parseKmlFeatures(layer) {
 
 /**
  * Find the ubersquadrat from candidates (must be explicitly named)
- * Uses Turf.js area calculation if multiple candidates exist
+ * Uses Turf.js area calculation if multiple candidates exist (backup against ubersquadratinhio)
  * @param {Array} candidates - Array of ubersquadrat candidates
  * @returns {Object} {coords, size} or {coords: null, size: 4} if not found
  */
@@ -182,7 +166,6 @@ export function findUbersquadrat(candidates) {
     return { coords: null, size: 4 };
   }
 
-  // If multiple ubersquadrat candidates, pick the largest
   let maxArea = 0;
   let uberCoords = null;
   let uberSize = 16;

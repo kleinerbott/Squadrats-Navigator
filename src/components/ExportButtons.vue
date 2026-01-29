@@ -16,9 +16,7 @@ const props = defineProps({
 
 const error = ref(null);
 
-/**
- * Export route as GPX file
- */
+
 function exportGpx() {
   try {
     const content = generateGPX(props.route);
@@ -29,9 +27,7 @@ function exportGpx() {
   }
 }
 
-/**
- * Export route as KML file
- */
+
 function exportKml() {
   try {
     const content = generateKML(props.route);
@@ -42,9 +38,7 @@ function exportKml() {
   }
 }
 
-/**
- * Open route in BikeRouter web interface for editing
- */
+
 function openInBikeRouter() {
   try {
     if (!props.route || !props.route.waypoints || props.route.waypoints.length < 2) {
@@ -52,18 +46,15 @@ function openInBikeRouter() {
       return;
     }
 
-    // Get waypoints (lon,lat format for BikeRouter, separated by semicolons)
     const lonlats = props.route.waypoints
       .map(wp => `${wp.lon.toFixed(6)},${wp.lat.toFixed(6)}`)
       .join(';');
 
-    // Get center point for map (use middle of route)
     const midIndex = Math.floor(props.route.waypoints.length / 2);
     const centerLat = props.route.waypoints[midIndex].lat;
     const centerLon = props.route.waypoints[midIndex].lon;
     const zoom = 12;
 
-    // Map bike type to BikeRouter profile
     const profileMap = {
       trekking: 'trekking',
       Mountainbike: 'MTB',
@@ -71,10 +62,8 @@ function openInBikeRouter() {
     };
     const profile = profileMap[routing.value.bikeType] || 'trekking';
 
-    // Build BikeRouter web URL
     const url = `https://bikerouter.de/#map=${zoom}/${centerLat.toFixed(5)}/${centerLon.toFixed(5)}/standard&lonlats=${lonlats}&profile=${profile}`;
 
-    // Open in new tab
     window.open(url, '_blank');
   } catch (err) {
     console.error('BikeRouter link error:', err);

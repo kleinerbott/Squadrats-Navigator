@@ -14,7 +14,6 @@ const loading = ref(false);
 const error = ref(null);
 
 onMounted(async () => {
-  // Try to load cached KML on startup
   const cached = loadCachedKml();
   if (cached) {
     try {
@@ -27,9 +26,6 @@ onMounted(async () => {
   }
 });
 
-/**
- * Handle file picker button click
- */
 async function handleLoadClick() {
   loading.value = true;
   error.value = null;
@@ -47,9 +43,6 @@ async function handleLoadClick() {
   }
 }
 
-/**
- * Process KML content and update store
- */
 async function processKmlContent(kmlContent, filename) {
   console.time('Timer KML Laden');
   store.setLoading(true);
@@ -79,7 +72,6 @@ async function processKmlContent(kmlContent, filename) {
 
     const visitedSet = scanAndBuildVisitedSet(allPolygons, gridParams.baseSquare, gridParams);
 
-    // Update store
     store.setGridParameters(gridParams);
     store.setVisitedSet(visitedSet);
     store.setKmlFilename(filename);
@@ -95,7 +87,7 @@ async function processKmlContent(kmlContent, filename) {
     console.error('Fehler beim Verarbeiten der KML:', err);
     console.timeEnd('Timer KML Laden');
     error.value = err.message;
-    throw err; // Re-throw to be caught by onMounted
+    throw err; 
   } finally {
     store.setLoading(false);
   }

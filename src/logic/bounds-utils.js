@@ -1,11 +1,4 @@
 /**
- * Bounds Utilities
- *
- * Unified handling of different bounds format representations across the codebase.
- * Normalizes between array format, object format, and nested bounds objects.
- */
-
-/**
  * Normalize bounds from any format to standard {south, north, east, west}
  *
  * Handles:
@@ -28,12 +21,10 @@ export function normalizeBounds(bounds) {
     };
   }
 
-  // Has nested bounds property
   if (bounds.bounds) {
-    return normalizeBounds(bounds.bounds); // Recursive call
+    return normalizeBounds(bounds.bounds); 
   }
 
-  // Min/Max format
   if (bounds.minLat !== undefined || bounds.maxLat !== undefined) {
     return {
       south: bounds.minLat ?? bounds.south,
@@ -43,7 +34,6 @@ export function normalizeBounds(bounds) {
     };
   }
 
-  // Already in standard format or close enough
   return {
     south: bounds.south,
     north: bounds.north,
@@ -145,7 +135,7 @@ export function combineBounds(boundsArray) {
 }
 
 /**
- * Default tolerance for floating-point coordinate comparison (~11 meters)
+ * Default tolerance for floating-point coordinate comparison
  */
 export const COORD_TOLERANCE = 0.0001;
 

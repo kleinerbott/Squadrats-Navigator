@@ -1,13 +1,7 @@
-/**
- * Pinia Store - Central Application State
- * Replaces the old AppState object with reactive Vue state management
- */
-
 import { defineStore } from 'pinia';
 
 export const useAppStore = defineStore('app', {
   state: () => ({
-    // Grid parameters (calculated from ubersquadrat)
     grid: {
       latStep: null,
       lonStep: null,
@@ -15,17 +9,14 @@ export const useAppStore = defineStore('app', {
       originLon: null
     },
 
-    // Core state
     visitedSet: new Set(),
     baseSquare: null,
     kmlLoading: false,
     kmlFilename: null,
 
-    // Proposed squares (results from optimizer)
     proposedSquares: [],
     proposedMetadata: [],
 
-    // Routing state
     routing: {
       startPoint: null,
       selectingStartPoint: false,
@@ -34,9 +25,7 @@ export const useAppStore = defineStore('app', {
       roundtrip: true
     },
 
-    // Optimization settings
     settings: {
-      // Strategic mode settings
       numSquares: 5,
       directions: ['N', 'S', 'E', 'W'],
       mode: 'balanced',
@@ -90,8 +79,6 @@ export const useAppStore = defineStore('app', {
     },
 
     resetRoute() {
-      // Don't clear startPoint - user may want to keep it for multiple optimizations
-      // Only clear the calculated route
       this.routing.selectingStartPoint = false;
       this.routing.currentRoute = null;
     },
@@ -142,13 +129,10 @@ export const useAppStore = defineStore('app', {
     },
 
     setProposedSquares(optimizationResult) {
-      // Handle both old format (array) and new format (object with metadata)
       if (Array.isArray(optimizationResult)) {
-        // Backward compatibility - old format
         this.proposedSquares = optimizationResult;
         this.proposedMetadata = [];
       } else {
-        // New format with metadata
         this.proposedSquares = optimizationResult.rectangles;
         this.proposedMetadata = optimizationResult.metadata || [];
       }

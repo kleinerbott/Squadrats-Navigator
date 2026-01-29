@@ -38,9 +38,6 @@ function toggleSidebar() {
   sidebarRef.value?.toggle();
 }
 
-/**
- * Handle optimization results - show squares on map
- */
 function handleOptimized(result) {
   if (Array.isArray(result)) {
     mapRef.value?.showProposedSquares(result, []);
@@ -49,13 +46,10 @@ function handleOptimized(result) {
   }
 }
 
-/**
- * Handle route calculation results - show route on map
- */
+
 function handleRouteCalculated(routeData) {
   mapRef.value?.showRoute(routeData);
 
-  // Update store with TSP-sorted squares
   const store = useAppStore();
   const allSquares = routeData.allSquares; 
 

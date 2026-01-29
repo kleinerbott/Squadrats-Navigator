@@ -1,13 +1,7 @@
-/**
- * TSP (Traveling Salesman Problem) Solver
- * Uses Turf.js for distance calculations and heuristic algorithms for route optimization.
- */
-
 import * as turf from '@turf/turf';
 
 /**
  * Nearest Neighbor algorithm for TSP using Turf.js nearestPoint
- * Greedy approach: always visit the nearest unvisited point
  * @param {Array} points - Array of {lat, lon} points to visit
  * @param {Object} startPoint - Starting point {lat, lon}
  * @param {boolean} roundtrip - Whether to return to start
@@ -24,12 +18,10 @@ export function nearestNeighbor(points, startPoint, roundtrip = false) {
   let current = turf.point([startPoint.lon, startPoint.lat]);
 
   while (unvisited.length > 0) {
-    // Create feature collection from unvisited points
     const pointsFC = turf.featureCollection(
       unvisited.map((p, idx) => turf.point([p.lon, p.lat], { index: idx }))
     );
 
-    // Use Turf's nearestPoint to find closest unvisited point
     const nearest = turf.nearestPoint(current, pointsFC);
     const nearestIndex = nearest.properties.index;
     const nearestPoint = unvisited[nearestIndex];
@@ -54,7 +46,6 @@ export function nearestNeighbor(points, startPoint, roundtrip = false) {
 export function calculateRouteDistance(route) {
   if (route.length < 2) return 0;
 
-  // Create linestring from route points
   const coords = route.map(p => [p.lon, p.lat]);
   const line = turf.lineString(coords);
   return turf.length(line, { units: 'kilometers' });
@@ -89,7 +80,7 @@ export function solveTSP(points, startPoint, roundtrip = false, optimize = true)
 export function twoOptOptimize(route, maxIterations = 100) {
   if (route.length < 4) return route;
 
-  const initialDistance = calculateRouteDistance(route);
+  //const initialDistance = calculateRouteDistance(route);
   const optimizedRoute = [...route];
   const n = optimizedRoute.length;
   let improved = true;
@@ -113,7 +104,6 @@ export function twoOptOptimize(route, maxIterations = 100) {
           turf.distance(turf.point([b.lon, b.lat]), turf.point([d.lon, d.lat]));
 
         if (newCost < currentCost) {
-          // Reverse segment [i..j]
           const reversed = optimizedRoute.slice(i, j + 1).reverse();
           optimizedRoute.splice(i, j - i + 1, ...reversed);
           improved = true;
@@ -123,15 +113,14 @@ export function twoOptOptimize(route, maxIterations = 100) {
     }
   }
 
-  const finalDistance = calculateRouteDistance(optimizedRoute);
-  const improvement = ((initialDistance - finalDistance) / initialDistance * 100).toFixed(1);
-  console.log(`2-opt: ${iterations} iterations, ${totalSwaps} swaps, ${initialDistance.toFixed(2)} → ${finalDistance.toFixed(2)} km (${improvement}% improvement)`);
+  //const finalDistance = calculateRouteDistance(optimizedRoute);
+  //const improvement = ((initialDistance - finalDistance) / initialDistance * 100).toFixed(1);
+  //console.log(`2-opt: ${iterations} iterations, ${totalSwaps} swaps, ${initialDistance.toFixed(2)} → ${finalDistance.toFixed(2)} km (${improvement}% improvement)`);
   return optimizedRoute;
 }
 
 /**
  * Refine waypoint candidates by testing alternatives and swapping if total route improves.
- * Uses TOTAL route distance (not just local prev→current→next) to capture global effects.
  *
  * @param {Array} route - Route array where waypoints may have .alternatives
  * @param {number} maxIterations - Maximum refinement iterations
@@ -140,10 +129,8 @@ export function twoOptOptimize(route, maxIterations = 100) {
 export function refineCandidates(route, maxIterations = 10) {
   if (route.length < 3) return { route, iterations: 0, swaps: 0, distance: calculateRouteDistance(route) };
 
-  // Count total alternatives available
-  const totalAlternatives = route.reduce((sum, wp) => sum + (wp.alternatives?.length || 0), 0);
-  const waypointsWithAlts = route.filter(wp => wp.alternatives?.length > 0).length;
-  console.log(`Candidate refinement: ${waypointsWithAlts} waypoints with ${totalAlternatives} total alternatives`);
+  //const totalAlternatives = route.reduce((sum, wp) => sum + (wp.alternatives?.length || 0), 0);
+  //const waypointsWithAlts = route.filter(wp => wp.alternatives?.length > 0).length;
 
   let improved = true;
   let iterations = 0;
@@ -173,7 +160,6 @@ export function refineCandidates(route, maxIterations = 10) {
 
         // Accept if improvement (with small tolerance to avoid floating point issues)
         if (newDistance < currentDistance - 0.001) {
-          // Swap: move current position to alternatives, promote alt to primary
           const oldCandidate = { lat: wp.lat, lon: wp.lon, type: wp.type, priority: wp.priority };
           wp.alternatives = [oldCandidate, ...wp.alternatives.filter(a => a !== alt)];
           wp.lat = alt.lat;
@@ -184,17 +170,12 @@ export function refineCandidates(route, maxIterations = 10) {
           currentDistance = newDistance;
           improved = true;
           totalSwaps++;
-          break; // Re-evaluate from start after a swap
+          break; 
         }
       }
 
-      if (improved) break; // Restart outer loop after improvement
+      if (improved) break;
     }
-  }
-
-  if (totalSwaps > 0) {
-    const improvement = ((initialDistance - currentDistance) / initialDistance * 100).toFixed(1);
-    console.log(`Candidate refinement: ${iterations} iterations, ${totalSwaps} swaps, ${initialDistance.toFixed(2)} → ${currentDistance.toFixed(2)} km (${improvement}% improvement)`);
   }
 
   return { route, iterations, swaps: totalSwaps, distance: currentDistance };

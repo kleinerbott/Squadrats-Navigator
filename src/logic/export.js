@@ -1,8 +1,3 @@
-/**
- * Export Module
- * Handles export functionality for GPX and KML file formats
- */
-
 import { formatTime } from './router.js';
 
 /**
@@ -29,7 +24,6 @@ export function generateGPX(routeData) {
     <trkseg>
 `;
 
-  // Add all track points
   routeData.coordinates.forEach(coord => {
     gpx += `      <trkpt lat="${coord.lat}" lon="${coord.lon}">
         <ele>${coord.elevation}</ele>
@@ -69,7 +63,6 @@ export function generateKML(routeData) {
         <coordinates>
 `;
 
-  // Add all coordinates (KML format: lon,lat,elevation)
   routeData.coordinates.forEach(coord => {
     kml += `          ${coord.lon},${coord.lat},${coord.elevation}\n`;
   });

@@ -121,7 +121,6 @@ function findContiguousRegion(startI, startJ, visited, isInBounds, visitedSet) {
     const [i, j] = queue.shift();
     const key = `${i},${j}`;
 
-    // Skip if already visited by overall algorithm or in visited set
     if (visited.has(key) || visitedSet.has(key)) continue;
     if (!isInBounds(i, j)) continue;
 
@@ -164,18 +163,15 @@ function detectHoles(base, visitedSet, maxHoleSize) {
   const holes = [];
   const processedSquares = new Set();
 
-  // Scan search area to find all holes
   for (let i = searchBounds.minI; i <= searchBounds.maxI; i++) {
     for (let j = searchBounds.minJ; j <= searchBounds.maxJ; j++) {
       const key = `${i},${j}`;
 
       if (processedSquares.has(key) || visitedSet.has(key)) continue;
 
-      // Found an unvisited square - find its contiguous region
       const region = findContiguousRegion(i, j, processedSquares, isInSearchBounds, visitedSet);
 
       if (region.length > 0) {
-        // Calculate average layer distance for this hole
         let totalLayerDist = 0;
         region.forEach(sq => {
           totalLayerDist += calculateLayerDistance(sq.i, sq.j, base).total;
@@ -213,8 +209,6 @@ function buildHoleMap(holes) {
   return squareToHoleMap;
 }
 
-// ===== MAIN OPTIMIZER =====
-
 /**
  * Main optimization entry point
  *
@@ -227,7 +221,7 @@ function buildHoleMap(holes) {
  * @param {number} originLat - Grid origin latitude
  * @param {number} originLon - Grid origin longitude
  * @param {string} optimizationMode - 'balanced', 'edge', or 'holes'
- * @param {number} maxHoleSize - Maximum hole size to consider (1-20)
+ * @param {number} maxHoleSize - Maximum hole size to consider (1-10)
  * @returns {Object} {rectangles, metadata} - Array of rectangle bounds and metadata
  */
 export function optimizeSquare(
@@ -298,13 +292,12 @@ export function optimizeSquare(
     const isBorder = isOnUbersquadratBorder(square.i, square.j, base);
     const layerDistance = isBorder ? 0 : calculateLayerDistance(square.i, square.j, base).total;
 
-    // Strongly prioritize proximity with bonuses AND penalties
     if (layerDistance === 0) scoreBreakdown.layerScore = 10000;
     else if (layerDistance === 1) scoreBreakdown.layerScore = 5000;
     else if (layerDistance === 2) scoreBreakdown.layerScore = 2000;
     else if (layerDistance === 3) scoreBreakdown.layerScore = 500;
-    else if (layerDistance === 4) scoreBreakdown.layerScore = -2000;
-    else if (layerDistance >= 5) scoreBreakdown.layerScore = -10000;
+    else if (layerDistance === 4) scoreBreakdown.layerScore = -1000;
+    else if (layerDistance >= 5) scoreBreakdown.layerScore = -2000;
 
     // === EDGE COMPLETION MODE ===
     const maxEdgeCompletion = ['N', 'S', 'E', 'W']
@@ -321,7 +314,7 @@ export function optimizeSquare(
     if (hole) {
       let holeMultiplier = 200;   // max 2,000 for size 10
       if (layerDistance >= 3) holeMultiplier = 150;
-      if (layerDistance >= 5) holeMultiplier = 75;
+      if (layerDistance >= 5) holeMultiplier = 100;
 
       holeSizeBonusRaw = hole.size * holeMultiplier;
 

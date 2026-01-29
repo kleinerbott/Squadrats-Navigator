@@ -1,11 +1,3 @@
-/**
- * File Loader Module - KML File Loading with LocalStorage Caching
- *
- * Provides file loading via File System Access API (modern browsers)
- * with fallback to traditional file input. Caches last loaded KML
- * in LocalStorage for auto-reload on next visit.
- */
-
 const STORAGE_KEY_FILENAME = 'squadrats_last_kml_filename';
 const STORAGE_KEY_CONTENT = 'squadrats_last_kml_content';
 
@@ -37,7 +29,6 @@ export async function loadKmlWithFilePicker() {
     const file = await fileHandle.getFile();
     const content = await file.text();
 
-    // Cache in LocalStorage
     saveToCache(file.name, content);
 
     return {
@@ -72,7 +63,6 @@ export function loadKmlWithFileInput() {
       try {
         const content = await file.text();
 
-        // Cache in LocalStorage
         saveToCache(file.name, content);
 
         resolve({
@@ -114,7 +104,6 @@ function saveToCache(filename, content) {
     localStorage.setItem(STORAGE_KEY_FILENAME, filename);
     localStorage.setItem(STORAGE_KEY_CONTENT, content);
   } catch (error) {
-    // Silent fail
   }
 }
 
@@ -131,7 +120,6 @@ export function loadCachedKml() {
       return { filename, content };
     }
   } catch (error) {
-    // Silent fail
   }
 
   return null;
